@@ -28,7 +28,7 @@ func Unauthorized(w http.ResponseWriter, err error) {
 	}
 }
 
-func CookieAuthMiddleware(loadUser func(context.Context, ...any) (any, error), config AuthConfig) func(http.Handler) http.Handler {
+func CookieAuthMiddleware(loadUser func(context.Context, core.ID) (any, error), config AuthConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
