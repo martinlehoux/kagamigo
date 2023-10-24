@@ -1,3 +1,3 @@
 ## TODO
 
-- Repair gettext
+- Add gettext to CI

@@ -3,6 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -80,14 +83,25 @@ func (p ArgsParser) ArgsCount() int {
 
 func extractKeys(content string) map[string]int {
 	extractedKeys := make(map[string]int, 0)
-	reg := regexp.MustCompile(`\{\{\s*call \$?\.T\s*"(\w+)"([\w.\s",:()]*)}}`)
+	reg := regexp.MustCompile(`\{ ?(login\.Tr\("\w+"[\w"(),. :]*\) ?)\}`)
 	matches := reg.FindAllStringSubmatch(content, -1)
 	for _, match := range matches {
-		key := match[1]
-		args := strings.TrimSpace(match[2])
-		parser := ArgsParser{}
-		parser.Parse(args)
-		extractedKeys[key] = parser.ArgsCount()
+		fakePackage := fmt.Sprintf(`package main
+	
+		func main() {
+			%s
+		}
+		`, match[1])
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, "", fakePackage, 0)
+		kcore.Expect(err, "error parsing file")
+		main := f.Decls[0].(*ast.FuncDecl)
+		call := main.Body.List[0].(*ast.ExprStmt).X.(*ast.CallExpr)
+		selector := call.Fun.(*ast.SelectorExpr)
+		if selector.Sel.Name == "Tr" {
+			key := strings.Trim(call.Args[0].(*ast.BasicLit).Value, `"`)
+			extractedKeys[key] = len(call.Args) - 1
+		}
 	}
 	return extractedKeys
 }
@@ -95,8 +109,8 @@ func extractKeys(content string) map[string]int {
 func extractAllKeys() map[string]int {
 	extractedKeys := make(map[string]int, 0)
 
-	err := filepath.Walk("templates", func(path string, info fs.FileInfo, err error) error {
-		if !info.IsDir() && filepath.Ext(path) == ".html" {
+	err := filepath.Walk(".", func(path string, info fs.FileInfo, err error) error {
+		if !info.IsDir() && filepath.Ext(path) == ".templ" {
 			content, err := os.ReadFile(path) // #nosec G304
 			kcore.Expect(err, "error reading file")
 			for key, value := range extractKeys(string(content)) {
