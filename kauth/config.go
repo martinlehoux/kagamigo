@@ -1,11 +1,11 @@
-package auth
+package kauth
 
 import (
 	"encoding/hex"
 	"errors"
 	"os"
 
-	"github.com/martinlehoux/kagamigo/core"
+	"github.com/martinlehoux/kagamigo/kcore"
 	"golang.org/x/exp/slog"
 )
 
@@ -21,7 +21,7 @@ type AuthConfig struct {
 func LoadCookieSecret(cookieSecretString string) []byte {
 	cookiesSecret, err := hex.DecodeString(cookieSecretString)
 	if err != nil {
-		err = core.Wrap(err, "error decoding cookie secret")
+		err = kcore.Wrap(err, "error decoding cookie secret")
 		slog.Error(err.Error())
 		os.Exit(1)
 	}

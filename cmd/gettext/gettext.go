@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/martinlehoux/kagamigo/core"
+	"github.com/martinlehoux/kagamigo/kcore"
 	"golang.org/x/exp/slog"
 	"gopkg.in/yaml.v3"
 )
@@ -98,14 +98,14 @@ func extractAllKeys() map[string]int {
 	err := filepath.Walk("templates", func(path string, info fs.FileInfo, err error) error {
 		if !info.IsDir() && filepath.Ext(path) == ".html" {
 			content, err := os.ReadFile(path) // #nosec G304
-			core.Expect(err, "error reading file")
+			kcore.Expect(err, "error reading file")
 			for key, value := range extractKeys(string(content)) {
 				extractedKeys[key] = value
 			}
 		}
 		return nil
 	})
-	core.Expect(err, "error walking templates directory")
+	kcore.Expect(err, "error walking templates directory")
 
 	return extractedKeys
 }
@@ -125,8 +125,8 @@ func main() {
 		newLocales := make(map[string]string, 0)
 
 		locales, err := os.ReadFile(filepath.Join("locales", lang, "index.yml")) // #nosec G304
-		core.Expect(err, "error reading file")
-		core.Expect(yaml.Unmarshal(locales, &currentLocales), "error unmarshalling yaml")
+		kcore.Expect(err, "error reading file")
+		kcore.Expect(yaml.Unmarshal(locales, &currentLocales), "error unmarshalling yaml")
 
 		correctLocales := 0
 		for key, translation := range currentLocales {
@@ -157,8 +157,8 @@ func main() {
 
 		if *write {
 			content, err := yaml.Marshal(newLocales)
-			core.Expect(err, "error marshalling yaml")
-			core.Expect(os.WriteFile(filepath.Join("locales", lang, "index.yml"), content, 0600), "error writing file")
+			kcore.Expect(err, "error marshalling yaml")
+			kcore.Expect(os.WriteFile(filepath.Join("locales", lang, "index.yml"), content, 0600), "error writing file")
 		}
 	}
 }

@@ -1,4 +1,4 @@
-package auth
+package kauth
 
 import (
 	"crypto/aes"
@@ -7,7 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 
-	"github.com/martinlehoux/kagamigo/core"
+	"github.com/martinlehoux/kagamigo/kcore"
 )
 
 var (
@@ -16,14 +16,14 @@ var (
 
 func encrypt(secret []byte, plainText string) string {
 	block, err := aes.NewCipher(secret)
-	core.Expect(err, "error creating AES cipher")
+	kcore.Expect(err, "error creating AES cipher")
 
 	aead, err := cipher.NewGCM(block)
-	core.Expect(err, "error creating AEAD")
+	kcore.Expect(err, "error creating AEAD")
 
 	nonce := make([]byte, aead.NonceSize())
 	_, err = rand.Read(nonce)
-	core.Expect(err, "error generating nonce")
+	kcore.Expect(err, "error generating nonce")
 
 	return base64.URLEncoding.EncodeToString(aead.Seal(nonce, nonce, []byte(plainText), nil))
 }
@@ -31,14 +31,14 @@ func encrypt(secret []byte, plainText string) string {
 func decrypt(secret []byte, encryptedText string) (string, error) {
 	encryptedBytes, err := base64.URLEncoding.DecodeString(encryptedText)
 	if err != nil {
-		err = core.Wrap(err, "error decoding base64")
+		err = kcore.Wrap(err, "error decoding base64")
 		return "", err
 	}
 	block, err := aes.NewCipher(secret)
-	core.Expect(err, "error creating AES cipher")
+	kcore.Expect(err, "error creating AES cipher")
 
 	aead, err := cipher.NewGCM(block)
-	core.Expect(err, "error creating AEAD")
+	kcore.Expect(err, "error creating AEAD")
 
 	nonceSize := aead.NonceSize()
 	if len(encryptedBytes) < nonceSize {
@@ -47,7 +47,7 @@ func decrypt(secret []byte, encryptedText string) (string, error) {
 	nonce, cipherText := encryptedBytes[:nonceSize], encryptedBytes[nonceSize:]
 	plainBytes, err := aead.Open(nil, nonce, cipherText, nil)
 	if err != nil {
-		err = core.Wrap(err, "error decrypting")
+		err = kcore.Wrap(err, "error decrypting")
 		return "", err
 	}
 	return string(plainBytes), nil

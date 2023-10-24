@@ -1,4 +1,4 @@
-package core
+package kcore
 
 import (
 	"github.com/kataras/i18n"

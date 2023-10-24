@@ -1,4 +1,4 @@
-package auth
+package kauth
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/martinlehoux/kagamigo/core"
+	"github.com/martinlehoux/kagamigo/kcore"
 	"golang.org/x/exp/slog"
 )
 
@@ -25,20 +25,20 @@ func UserFromContext[U any](ctx context.Context) (U, bool) {
 	return user, ok
 }
 
-func LoginFromContext[U core.WithLanguage](ctx context.Context) core.Login[U] {
+func LoginFromContext[U kcore.WithLanguage](ctx context.Context) kcore.Login[U] {
 	user, ok := UserFromContext[U](ctx)
-	return core.LoginFromUser(user, ok)
+	return kcore.LoginFromUser(user, ok)
 }
 
 func Unauthorized(w http.ResponseWriter, err error) {
 	w.WriteHeader(http.StatusUnauthorized)
 	if err != nil {
 		_, err = w.Write([]byte(err.Error()))
-		core.Expect(err, "error writing response")
+		kcore.Expect(err, "error writing response")
 	}
 }
 
-func CookieAuthMiddleware(loadUser func(context.Context, core.ID) (any, error), config AuthConfig) func(http.Handler) http.Handler {
+func CookieAuthMiddleware(loadUser func(context.Context, kcore.ID) (any, error), config AuthConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -47,11 +47,11 @@ func CookieAuthMiddleware(loadUser func(context.Context, core.ID) (any, error), 
 				next.ServeHTTP(w, r)
 				return
 			}
-			core.Expect(err, "error reading cookie")
+			kcore.Expect(err, "error reading cookie")
 
 			authentication, err := decrypt(config.CookieSecret, cookie.Value)
 			if err != nil {
-				err = core.Wrap(err, "error decrypting cookie")
+				err = kcore.Wrap(err, "error decrypting cookie")
 				slog.Warn(err.Error())
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -62,16 +62,16 @@ func CookieAuthMiddleware(loadUser func(context.Context, core.ID) (any, error), 
 				http.Error(w, ErrBadCookie.Error(), http.StatusBadRequest)
 				return
 			}
-			userId, err := core.ParseID(parts[0])
+			userId, err := kcore.ParseID(parts[0])
 			if err != nil {
-				err = core.Wrap(err, "error parsing user id")
+				err = kcore.Wrap(err, "error parsing user id")
 				slog.Warn(err.Error())
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			expiresAtSeconds, err := strconv.Atoi(parts[1])
 			if err != nil {
-				err = core.Wrap(err, "error parsing expires at")
+				err = kcore.Wrap(err, "error parsing expires at")
 				slog.Warn(err.Error())
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -83,7 +83,7 @@ func CookieAuthMiddleware(loadUser func(context.Context, core.ID) (any, error), 
 				return
 			}
 			user, err := loadUser(ctx, userId)
-			core.Expect(err, "error loading user")
+			kcore.Expect(err, "error loading user")
 
 			ctx = context.WithValue(ctx, userContext{}, user)
 			next.ServeHTTP(w, r.WithContext(ctx))
