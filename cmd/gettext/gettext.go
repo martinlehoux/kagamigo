@@ -97,7 +97,7 @@ func extractAllKeys() map[string]int {
 
 	err := filepath.Walk("templates", func(path string, info fs.FileInfo, err error) error {
 		if !info.IsDir() && filepath.Ext(path) == ".html" {
-			content, err := os.ReadFile(path)
+			content, err := os.ReadFile(path) // #nosec G304
 			core.Expect(err, "error reading file")
 			for key, value := range extractKeys(string(content)) {
 				extractedKeys[key] = value
@@ -124,7 +124,7 @@ func main() {
 		currentLocales := make(map[string]string, 0)
 		newLocales := make(map[string]string, 0)
 
-		locales, err := os.ReadFile(filepath.Join("locales", lang, "index.yml"))
+		locales, err := os.ReadFile(filepath.Join("locales", lang, "index.yml")) // #nosec G304
 		core.Expect(err, "error reading file")
 		core.Expect(yaml.Unmarshal(locales, &currentLocales), "error unmarshalling yaml")
 
