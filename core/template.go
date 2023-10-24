@@ -18,16 +18,16 @@ func GetTr(wl WithLanguage) Tr {
 	return func(format string, args ...any) string { return i18n.Tr(lang, format, args...) }
 }
 
-type LoginContext[U any] struct {
-	IsLoggedIn bool
-	User       U
-	Tr         Tr
+type Login[U any] struct {
+	Ok   bool
+	User U
+	Tr   Tr
 }
 
-func GetLoginContext[U WithLanguage](user U, ok bool) LoginContext[U] {
-	return LoginContext[U]{
-		IsLoggedIn: ok,
-		User:       user,
-		Tr:         GetTr(user),
+func LoginFromUser[U WithLanguage](user U, ok bool) Login[U] {
+	return Login[U]{
+		Ok:   ok,
+		User: user,
+		Tr:   GetTr(user),
 	}
 }

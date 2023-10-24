@@ -20,6 +20,16 @@ var (
 
 type userContext struct{}
 
+func UserFromContext[U any](ctx context.Context) (U, bool) {
+	user, ok := ctx.Value(userContext{}).(U)
+	return user, ok
+}
+
+func LoginFromContext[U core.WithLanguage](ctx context.Context) core.Login[U] {
+	user, ok := UserFromContext[U](ctx)
+	return core.LoginFromUser(user, ok)
+}
+
 func Unauthorized(w http.ResponseWriter, err error) {
 	w.WriteHeader(http.StatusUnauthorized)
 	if err != nil {
