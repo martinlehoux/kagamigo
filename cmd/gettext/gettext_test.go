@@ -60,3 +60,12 @@ func TestExtractMultipleKeys(t *testing.T) {
 	assert.Equal(t, 1, keys["test_1"])
 	assert.Equal(t, 1, keys["test_2"])
 }
+
+func TestExtractKeyFromSimpleTrFunc(t *testing.T) {
+	content := `{ Tr("test") }`
+
+	keys := extractKeys(content)
+
+	assert.Len(t, keys, 1)
+	assert.Equal(t, 0, keys["test"])
+}

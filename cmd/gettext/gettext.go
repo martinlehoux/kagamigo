@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"go/ast"
@@ -83,7 +84,7 @@ func (p ArgsParser) ArgsCount() int {
 
 func extractKeys(content string) map[string]int {
 	extractedKeys := make(map[string]int, 0)
-	reg := regexp.MustCompile(`\{ ?(login\.Tr\("\w+"[\w"(),. :]*\) ?)\}`)
+	reg := regexp.MustCompile(`\{ ?((?:login\.)?Tr\("\w+"[\w"(),. :]*\) ?)\}`)
 	matches := reg.FindAllStringSubmatch(content, -1)
 	for _, match := range matches {
 		fakePackage := fmt.Sprintf(`package main
@@ -97,8 +98,17 @@ func extractKeys(content string) map[string]int {
 		kcore.Expect(err, "error parsing file")
 		main := f.Decls[0].(*ast.FuncDecl)
 		call := main.Body.List[0].(*ast.ExprStmt).X.(*ast.CallExpr)
-		selector := call.Fun.(*ast.SelectorExpr)
-		if selector.Sel.Name == "Tr" {
+		isTrCall := false
+		switch call.Fun.(type) {
+		case *ast.SelectorExpr:
+			selector := call.Fun.(*ast.SelectorExpr)
+			isTrCall = selector.Sel.Name == "Tr"
+
+		case *ast.Ident:
+			ident := call.Fun.(*ast.Ident)
+			isTrCall = ident.Name == "Tr"
+		}
+		if isTrCall {
 			key := strings.Trim(call.Args[0].(*ast.BasicLit).Value, `"`)
 			extractedKeys[key] = len(call.Args) - 1
 		}
@@ -124,6 +134,24 @@ func extractAllKeys() map[string]int {
 	return extractedKeys
 }
 
+func getOrCreateLocale(lang string, logger *slog.Logger) map[string]string {
+	currentLocales := make(map[string]string, 0)
+	locales, err := os.ReadFile(filepath.Join("locales", lang, "index.yml")) // #nosec G304
+	if errors.Is(err, os.ErrNotExist) {
+		logger.Info("no locales file found, creating")
+		err = os.MkdirAll(filepath.Join("locales", lang), 0700)
+		kcore.Expect(err, "error creating directory")
+		err = os.WriteFile(filepath.Join("locales", lang, "index.yml"), []byte{}, 0600)
+		kcore.Expect(err, "error writing file")
+		locales, err = os.ReadFile(filepath.Join("locales", lang, "index.yml")) // #nosec G304
+		kcore.Expect(err, "error reading file")
+	} else {
+		kcore.Expect(err, "error reading file")
+	}
+	kcore.Expect(yaml.Unmarshal(locales, &currentLocales), "error unmarshalling yaml")
+	return currentLocales
+}
+
 func main() {
 	write := flag.Bool("write", false, "write new locales")
 	flag.Parse()
@@ -135,12 +163,8 @@ func main() {
 
 	for _, lang := range langs {
 		logger := baseLogger.With(slog.String("lang", lang))
-		currentLocales := make(map[string]string, 0)
+		currentLocales := getOrCreateLocale(lang, logger)
 		newLocales := make(map[string]string, 0)
-
-		locales, err := os.ReadFile(filepath.Join("locales", lang, "index.yml")) // #nosec G304
-		kcore.Expect(err, "error reading file")
-		kcore.Expect(yaml.Unmarshal(locales, &currentLocales), "error unmarshalling yaml")
 
 		correctLocales := 0
 		for key, translation := range currentLocales {
@@ -166,8 +190,13 @@ func main() {
 				newLocales[key] = ""
 			}
 		}
-
-		logger.Info("finished checking locales", slog.Int("count", len(newLocales)), slog.Int("correct", correctLocales), slog.String("completion", fmt.Sprintf("%d%%", correctLocales*100/len(extractedKeys))))
+		var completion string
+		if len(extractedKeys) > 0 {
+			completion = fmt.Sprintf("%d%%", correctLocales*100/len(extractedKeys))
+		} else {
+			completion = "?%"
+		}
+		logger.Info("finished checking locales", slog.Int("count", len(newLocales)), slog.Int("correct", correctLocales), slog.String("completion", completion))
 
 		if *write {
 			content, err := yaml.Marshal(newLocales)
