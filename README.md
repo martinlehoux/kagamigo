@@ -1,3 +1,9 @@
+## Publishing a new version
+
+- Push the code
+- Once the pipeline is green, `git tag vx.x.x`
+- `git push --tags`
+
 ## gettext
 
 - Add gettext to CI
