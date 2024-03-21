@@ -8,7 +8,7 @@ import (
 )
 
 func isQueryFunc(node *ast.FuncDecl) bool {
-	return strings.HasSuffix(node.Name.Name, "Query")
+	return strings.HasSuffix(node.Name.Name, "Query") && !strings.HasPrefix(node.Name.Name, "Test")
 }
 
 func checkQueryFunc(pass *analysis.Pass, node *ast.FuncDecl) {

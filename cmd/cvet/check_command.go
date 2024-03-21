@@ -11,7 +11,7 @@ import (
 )
 
 func isCommandFunc(node *ast.FuncDecl) bool {
-	return strings.HasSuffix(node.Name.Name, "Command")
+	return strings.HasSuffix(node.Name.Name, "Command") && !strings.HasPrefix(node.Name.Name, "Test")
 }
 
 func loggerCommandKeyValueArgFinder(pass *analysis.Pass, commandName string) func(arg ast.Expr) bool {
