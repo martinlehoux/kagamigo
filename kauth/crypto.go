@@ -45,7 +45,7 @@ func decrypt(secret []byte, encryptedText string) (string, error) {
 		return "", ErrEncryptedTooShort
 	}
 	nonce, cipherText := encryptedBytes[:nonceSize], encryptedBytes[nonceSize:]
-	plainBytes, err := aead.Open(nil, nonce, cipherText, nil)
+	plainBytes, err := aead.Open(nil, nonce, cipherText, nil) // #nosec G407
 	if err != nil {
 		err = kcore.Wrap(err, "error decrypting")
 		return "", err

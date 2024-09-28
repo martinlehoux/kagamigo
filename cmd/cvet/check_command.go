@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"go/ast"
 	"go/token"
 	"strings"
@@ -37,7 +36,7 @@ func loggerCommandKeyValueArgFinder(pass *analysis.Pass, commandName string) fun
 
 			value := secondArg.Value[1 : len(secondArg.Value)-1]
 			if value != commandName {
-				pass.Reportf(arg.Pos(), fmt.Sprintf("logger command name must be function name %s, but found %s", commandName, value))
+				pass.Reportf(arg.Pos(), "logger command name must be function name %s, but found %s", commandName, value)
 				return true
 			}
 			return true
