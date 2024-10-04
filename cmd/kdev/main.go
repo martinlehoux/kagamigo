@@ -32,6 +32,7 @@ var sortBy = flag.String("sort", "date", "Sort by date or random")
 var maxRecords = flag.Int("max", 25, "Maximum number of records to display")
 var repoPath = flag.String("repo", ".", "Path to the repository")
 var afterS = flag.String("after", "2022-09-01", "Only show records after this date")
+var algo = flag.String("algo", "git", "Record extraction algorithm (git, go-git, stat)")
 
 func main() {
 	var err error
@@ -111,9 +112,17 @@ func processFile(repoPath string, relativePath string, keywords []string, record
 		return nil
 	}
 
-	recordExtractor := NewStatRecordExtractor(absolutePath)
-	// recordExtractor = NewGoGitRecordExtractor(head, relativePath)
-	// recordExtractor := &GitRecordExtractor{repoPath: repoPath}
+	var recordExtractor RecordExtractor
+	switch *algo {
+	case "git":
+		recordExtractor = &GitRecordExtractor{repoPath: repoPath}
+	case "go-git":
+		recordExtractor = NewGoGitRecordExtractor(head, relativePath)
+	case "stat":
+		recordExtractor = NewStatRecordExtractor(absolutePath)
+	default:
+		kcore.Assert(false, "wrong algo value (git, go-git, stat)")
+	}
 	if recordExtractor == nil {
 		return nil
 	}
