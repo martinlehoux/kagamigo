@@ -55,12 +55,16 @@ func NewGoGitRecordExtractor(head *object.Commit, path string) *GoGitRecordExtra
 }
 
 func (re *GoGitRecordExtractor) Extract(keyword string, path string, line int) Record {
-	return Record{
+	record := Record{
 		keyword: keyword,
 		path:    path,
 		line:    line,
-		date:    re.blame.Lines[line-1].Date,
 	}
+	if re != nil {
+		record.date = re.blame.Lines[line-1].Date
+	}
+
+	return record
 }
 
 type GitRecordExtractor struct {

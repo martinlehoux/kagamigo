@@ -17,6 +17,7 @@ import (
 	"github.com/martinlehoux/kagamigo/kcore"
 	"github.com/samber/lo"
 	"github.com/schollz/progressbar/v3"
+	"github.com/spf13/viper"
 	"golang.org/x/exp/slog"
 )
 
@@ -39,8 +40,10 @@ func main() {
 	flag.Parse()
 	after, err := time.Parse(time.DateOnly, *afterS)
 	kcore.Expect(err, "Error parsing date")
-	excludes := []string{".venv", ".git", ".ruff_cache", "db_dumps", ".mypy_cache", "uploads", "__pycache__", ".coverage"}
-	keywords := []string{"# TODO"}
+	if !strings.HasSuffix(*repoPath, "/") {
+		*repoPath = *repoPath + "/"
+	}
+
 	records := []Record{}
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
@@ -48,9 +51,15 @@ func main() {
 		kcore.Expect(pprof.StartCPUProfile(f), "Error starting CPU profile")
 		defer pprof.StopCPUProfile()
 	}
-	slog.Info("Scanning repository", "repo", *repoPath, "sort", *sortBy, "max", *maxRecords)
+	slog.Info("Scanning repository", "repo", *repoPath, "sort", *sortBy, "max", *maxRecords, "after", *afterS, "algo", *algo)
+	viper.SetConfigType("yaml")
+	configFile, err := os.Open(path.Join(*repoPath, ".kdev.yaml"))
+	kcore.Expect(err, "Error opening config file")
+	defer configFile.Close()
+	kcore.Expect(viper.ReadConfig(configFile), "Error reading config file")
+	excludes := viper.GetStringSlice("excludes")
+	keywords := viper.GetStringSlice("keywords")
 	repo, err := git.PlainOpen(path.Join(*repoPath, ".git"))
-	// repo, err := git.Clone(memory.NewStorage(), nil, &git.CloneOptions{URL: path.Join(*repoPath, ".git")})
 	kcore.Expect(err, "Error opening repository")
 	ref, err := repo.Head()
 	kcore.Expect(err, "Error getting HEAD")
@@ -58,12 +67,17 @@ func main() {
 	kcore.Expect(err, "Error getting commit object")
 	progress := progressbar.Default(-1, "Scanning")
 	err = filepath.WalkDir(*repoPath, func(path string, d fs.DirEntry, err error) error {
-		relativePath := strings.TrimPrefix(path, *repoPath+"/")
+		relativePath := strings.TrimPrefix(path, *repoPath)
+		progress.Describe(relativePath)
 		if err != nil {
 			return err
 		}
 		if slices.Contains(excludes, d.Name()) {
-			return filepath.SkipDir
+			if d.IsDir() {
+				return filepath.SkipDir
+			} else {
+				return nil
+			}
 		}
 		if d.Type()&fs.ModeSymlink != 0 {
 			return nil
@@ -75,6 +89,7 @@ func main() {
 		return nil
 	})
 	kcore.Expect(err, "Error walking directory")
+
 	records = lo.Filter(records, func(record Record, index int) bool { return record.date.After(after) })
 	if *sortBy == "random" {
 		records = lo.Shuffle(records)
@@ -82,7 +97,7 @@ func main() {
 		slices.SortFunc(records, func(a, b Record) int { return -int(a.date.Sub(b.date).Nanoseconds()) })
 	}
 	fmt.Println("")
-	for _, record := range records[:*maxRecords] {
+	for _, record := range records[:min(*maxRecords, len(records))] {
 		fmt.Printf("%s\t %s:%d\n", record.date.Format("2006-01-02"), record.path, record.line)
 	}
 }
@@ -96,7 +111,7 @@ func processFile(repoPath string, relativePath string, keywords []string, record
 	absolutePath := path.Join(repoPath, relativePath)
 	content, err := os.ReadFile(absolutePath) // #nosec G304
 	if err != nil {
-		return err
+		return kcore.Wrap(err, "Error reading file")
 	}
 
 	lines := strings.Split(string(content), "\n")
