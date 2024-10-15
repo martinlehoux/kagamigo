@@ -35,6 +35,11 @@ var repoPath = flag.String("repo", ".", "Path to the repository")
 var afterS = flag.String("after", "2022-09-01", "Only show records after this date")
 var algo = flag.String("algo", "git", "Record extraction algorithm (git, go-git, stat)")
 
+var excludes map[string]bool = map[string]bool{
+	".git":       true,
+	".kdev.yaml": true,
+}
+
 func main() {
 	var err error
 	flag.Parse()
@@ -57,7 +62,9 @@ func main() {
 	kcore.Expect(err, "Error opening config file")
 	defer configFile.Close()
 	kcore.Expect(viper.ReadConfig(configFile), "Error reading config file")
-	excludes := viper.GetStringSlice("excludes")
+	for _, exclude := range viper.GetStringSlice("excludes") {
+		excludes[exclude] = true
+	}
 	keywords := viper.GetStringSlice("keywords")
 	repo, err := git.PlainOpen(path.Join(*repoPath, ".git"))
 	kcore.Expect(err, "Error opening repository")
@@ -72,7 +79,7 @@ func main() {
 		if err != nil {
 			return err
 		}
-		if slices.Contains(excludes, d.Name()) {
+		if excludes[d.Name()] {
 			if d.IsDir() {
 				return filepath.SkipDir
 			} else {
