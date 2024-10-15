@@ -72,8 +72,23 @@ func main() {
 	kcore.Expect(err, "Error getting HEAD")
 	head, err := repo.CommitObject(ref.Hash())
 	kcore.Expect(err, "Error getting commit object")
+	kcore.Expect(walkRepo(keywords, head, records), "Error walking directory")
+
+	records = lo.Filter(records, func(record Record, index int) bool { return record.date.After(after) })
+	if *sortBy == "random" {
+		records = lo.Shuffle(records)
+	} else {
+		slices.SortFunc(records, func(a, b Record) int { return -int(a.date.Sub(b.date).Nanoseconds()) })
+	}
+	fmt.Println("")
+	for _, record := range records[:min(*maxRecords, len(records))] {
+		fmt.Printf("%s\t %s:%d\n", record.date.Format("2006-01-02"), record.path, record.line)
+	}
+}
+
+func walkRepo(keywords []string, head *object.Commit, records []Record) error {
 	progress := progressbar.Default(-1, "Scanning")
-	err = filepath.WalkDir(*repoPath, func(path string, d fs.DirEntry, err error) error {
+	return filepath.WalkDir(*repoPath, func(path string, d fs.DirEntry, err error) error {
 		relativePath := strings.TrimPrefix(path, *repoPath)
 		progress.Describe(relativePath)
 		if err != nil {
@@ -95,18 +110,6 @@ func main() {
 		}
 		return nil
 	})
-	kcore.Expect(err, "Error walking directory")
-
-	records = lo.Filter(records, func(record Record, index int) bool { return record.date.After(after) })
-	if *sortBy == "random" {
-		records = lo.Shuffle(records)
-	} else {
-		slices.SortFunc(records, func(a, b Record) int { return -int(a.date.Sub(b.date).Nanoseconds()) })
-	}
-	fmt.Println("")
-	for _, record := range records[:min(*maxRecords, len(records))] {
-		fmt.Printf("%s\t %s:%d\n", record.date.Format("2006-01-02"), record.path, record.line)
-	}
 }
 
 type MatchingLine struct {
