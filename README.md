@@ -13,7 +13,3 @@
 2.  Use `Tr("key", value...)` in you templ files
 3.  Complete generated files
 4.  Run
-
-## kdev
-
-- Add a config file for excludes

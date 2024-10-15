@@ -72,7 +72,7 @@ func main() {
 	kcore.Expect(err, "Error getting HEAD")
 	head, err := repo.CommitObject(ref.Hash())
 	kcore.Expect(err, "Error getting commit object")
-	kcore.Expect(walkRepo(keywords, head, records), "Error walking directory")
+	kcore.Expect(walkRepo(keywords, head, &records), "Error walking directory")
 
 	records = lo.Filter(records, func(record Record, index int) bool { return record.date.After(after) })
 	if *sortBy == "random" {
@@ -86,7 +86,7 @@ func main() {
 	}
 }
 
-func walkRepo(keywords []string, head *object.Commit, records []Record) error {
+func walkRepo(keywords []string, head *object.Commit, records *[]Record) error {
 	progress := progressbar.Default(-1, "Scanning")
 	return filepath.WalkDir(*repoPath, func(path string, d fs.DirEntry, err error) error {
 		relativePath := strings.TrimPrefix(path, *repoPath)
@@ -106,7 +106,7 @@ func walkRepo(keywords []string, head *object.Commit, records []Record) error {
 		}
 		if !d.IsDir() {
 			kcore.Expect(progress.Add(1), "Error incrementing progress")
-			return processFile(*repoPath, relativePath, keywords, &records, head)
+			return processFile(*repoPath, relativePath, keywords, records, head)
 		}
 		return nil
 	})
