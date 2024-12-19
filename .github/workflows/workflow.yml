@@ -1,5 +1,8 @@
 name: Push action
-on: push
+on:
+  push:
+    tags-ignore:
+      - "**"
 jobs:
   checks:
     runs-on: ubuntu-latest
