@@ -4,6 +4,12 @@
 - Once the pipeline is green, `git tag vx.x.x`
 - `git push --tags`
 
+## kdev
+
+- [ ] Ignore bin files
+- [ ] Ignore regex
+- [ ] All config from CLI or file
+
 ## gettext
 
 - Add gettext to CI
@@ -13,3 +19,8 @@
 2.  Use `Tr("key", value...)` in you templ files
 3.  Complete generated files
 4.  Run
+
+## web
+
+- Use reflection add startup time to add metadata to logging
+- Save aggregate + an event with time & actor (event streaming)
