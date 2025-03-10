@@ -15,6 +15,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/martinlehoux/kagamigo/kcore"
 	"github.com/samber/lo"
+	"github.com/samber/lo/mutable"
 	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -93,7 +94,7 @@ func main() {
 
 	records = lo.Filter(records, func(record Record, index int) bool { return record.date.After(after) })
 	if sortBy == "random" {
-		records = lo.Shuffle(records)
+		mutable.Shuffle(records)
 	} else {
 		slices.SortFunc(records, func(a, b Record) int { return -int(a.date.Sub(b.date).Nanoseconds()) })
 	}
