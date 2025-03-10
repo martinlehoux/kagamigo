@@ -8,8 +8,6 @@
 
 - [ ] Ignore bin files
 - [ ] Ignore regex
-- [ ] All config from CLI or file
-  - panic: Error opening config file: open .kdev.yaml: no such file or directory
 
 ## gettext
 
