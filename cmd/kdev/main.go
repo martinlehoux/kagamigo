@@ -152,7 +152,12 @@ func processFile(repoPath string, relativePath string, keywords []string, record
 		return nil
 	}
 	for _, line := range matchingLines {
-		*records = append(*records, recordExtractor.Extract(line.keyword, relativePath, line.line))
+		record, err := recordExtractor.Extract(line.keyword, relativePath, line.line)
+		if err != nil {
+			slog.Warn("Error extracting record", "err", err)
+		} else {
+			*records = append(*records, record)
+		}
 	}
 
 	return nil

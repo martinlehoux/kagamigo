@@ -4,11 +4,12 @@
 - Once the pipeline is green, `git tag vx.x.x`
 - `git push --tags`
 
-## kdev
+## kdev
 
 - [ ] Ignore bin files
-- [ ] Ignore regex
-- [ ] All config from CLI or file
+- [ ] Ignore regex
+- [ ] All config from CLI or file
+  - panic: Error opening config file: open .kdev.yaml: no such file or directory
 
 ## gettext
 

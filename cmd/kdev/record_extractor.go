@@ -15,7 +15,7 @@ import (
 )
 
 type RecordExtractor interface {
-	Extract(keyword string, path string, line int) Record
+	Extract(keyword string, path string, line int) (Record, error)
 }
 
 type StatRecordExtractor struct {
@@ -31,13 +31,13 @@ func NewStatRecordExtractor(absolutePath string) *StatRecordExtractor {
 	}
 }
 
-func (re *StatRecordExtractor) Extract(keyword string, path string, line int) Record {
+func (re *StatRecordExtractor) Extract(keyword string, path string, line int) (Record, error) {
 	return Record{
 		keyword: keyword,
 		path:    path,
 		line:    line,
 		date:    re.fileInfo.ModTime(),
-	}
+	}, nil
 }
 
 type GoGitRecordExtractor struct {
@@ -54,24 +54,22 @@ func NewGoGitRecordExtractor(head *object.Commit, path string) *GoGitRecordExtra
 	}
 }
 
-func (re *GoGitRecordExtractor) Extract(keyword string, path string, line int) Record {
+func (re *GoGitRecordExtractor) Extract(keyword string, path string, line int) (Record, error) {
 	record := Record{
 		keyword: keyword,
 		path:    path,
 		line:    line,
 	}
-	if re != nil {
-		record.date = re.blame.Lines[line-1].Date
-	}
+	record.date = re.blame.Lines[line-1].Date
 
-	return record
+	return record, nil
 }
 
 type GitRecordExtractor struct {
 	repoPath string
 }
 
-func (re *GitRecordExtractor) Extract(keyword string, path string, line int) Record {
+func (re *GitRecordExtractor) Extract(keyword string, path string, line int) (Record, error) {
 	record := Record{
 		keyword: keyword,
 		path:    path,
@@ -83,7 +81,7 @@ func (re *GitRecordExtractor) Extract(keyword string, path string, line int) Rec
 	output, err := cmd.Output()
 
 	if err != nil {
-		panic(kcore.Wrap(err, fmt.Sprintf("Error running: git %s", strings.Join(gitArgs, " "))))
+		return record, kcore.Wrap(err, fmt.Sprintf("Error running: git %s", strings.Join(gitArgs, " ")))
 	}
 
 	for _, blameLine := range strings.Split(string(output), "\n") {
@@ -91,9 +89,10 @@ func (re *GitRecordExtractor) Extract(keyword string, path string, line int) Rec
 			timestamp, err := strconv.ParseInt(strings.TrimPrefix(blameLine, "author-time "), 10, 64)
 			kcore.Expect(err, "Error parsing timestamp")
 			record.date = time.Unix(timestamp, 0)
-			return record
+			return record, nil
 		}
 	}
 	kcore.Assert(false, "No date found in git blame output")
-	return Record{}
+
+	return Record{}, nil
 }
