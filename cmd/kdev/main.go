@@ -6,8 +6,10 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime/pprof"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,6 +34,7 @@ type Record struct {
 var excludes map[string]bool = map[string]bool{}
 var repoPath string
 var after time.Time
+var before time.Time
 var sortBy string
 var maxRecords int
 var algo string
@@ -46,7 +49,8 @@ func initConfig() {
 	}
 	pflag.String("sort", "date", "Sort by date or random")
 	pflag.Int("max", 25, "Maximum number of records to display")
-	pflag.String("after", "2022-09-01", "Only show records after this date")
+	pflag.String("after", "", "Only show records after this date")
+	pflag.String("before", "", "Only show records before this date. ISO date, or '7 days'")
 	pflag.String("algo", "git", "Record extraction algorithm (git, go-git, stat)")
 	pflag.String("cpuProfile", "", "write cpu profile to file")
 	pflag.StringSlice("excludes", []string{".git", ".kdev.yaml"}, "Excluded directories")
@@ -59,8 +63,25 @@ func initConfig() {
 	kcore.Expect(viper.BindPFlags(pflag.CommandLine), "Error binding flags")
 	kcore.Expect(viper.ReadInConfig(), "Error reading config file")
 
-	after, err = time.Parse(time.DateOnly, viper.GetString("after"))
-	kcore.Expect(err, "Error parsing date")
+	if afterStr := viper.GetString("after"); afterStr != "" {
+		after, err = time.Parse(time.DateOnly, viper.GetString("after"))
+		kcore.Expect(err, "Error parsing date")
+	}
+	if beforeStr := viper.GetString("before"); beforeStr != "" {
+		before, err = time.Parse(time.DateOnly, viper.GetString("before"))
+		kcore.Assert(err != nil || before.IsZero(), "Parsing should fail")
+		if err != nil {
+			regexp := regexp.MustCompile(`^(\d+)d$`)
+			matches := regexp.FindStringSubmatch(viper.GetString("before"))
+			if len(matches) == 2 {
+				days, err := strconv.Atoi(matches[1])
+				kcore.Expect(err, "Error parsing days")
+				d := time.Duration(days) * time.Hour * 24
+				before = time.Now().Add(-d)
+			}
+			kcore.Assert(!before.IsZero(), "Error parsing date")
+		}
+	}
 	sortBy = viper.GetString("sort")
 	maxRecords = viper.GetInt("max")
 	algo = viper.GetString("algo")
@@ -82,7 +103,7 @@ func main() {
 		kcore.Expect(pprof.StartCPUProfile(f), "Error starting CPU profile")
 		defer pprof.StopCPUProfile()
 	}
-	slog.Info("Scanning repository", "repo", repoPath, "sort", sortBy, "max", maxRecords, "after", after, "algo", algo)
+	slog.Info("Scanning repository", "repo", repoPath, "sort", sortBy, "max", maxRecords, "after", after.Format(time.DateOnly), "before", before.Format(time.DateOnly), "algo", algo)
 
 	repo, err := git.PlainOpen(path.Join(repoPath, ".git"))
 	kcore.Expect(err, "Error opening repository")
@@ -92,7 +113,12 @@ func main() {
 	kcore.Expect(err, "Error getting commit object")
 	kcore.Expect(walkRepo(keywords, head, &records), "Error walking directory")
 
-	records = lo.Filter(records, func(record Record, index int) bool { return record.date.After(after) })
+	if !after.IsZero() {
+		records = lo.Filter(records, func(record Record, index int) bool { return record.date.After(after) })
+	}
+	if !before.IsZero() {
+		records = lo.Filter(records, func(record Record, index int) bool { return record.date.Before(before) })
+	}
 	if sortBy == "random" {
 		mutable.Shuffle(records)
 	} else {
