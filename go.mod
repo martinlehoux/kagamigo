@@ -145,7 +145,8 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
-	github.com/mgechev/revive v1.7.0 // indirect
+	github.com/mgechev/dots v0.0.0-20210922191527-e955255bf517 // indirect
+	github.com/mgechev/revive v1.9.0 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/moricho/tparallel v0.3.2 // indirect
@@ -250,6 +251,7 @@ tool (
 	github.com/fzipp/gocyclo/cmd/gocyclo
 	github.com/golangci/golangci-lint/cmd/golangci-lint
 	github.com/martinlehoux/kagamigo/cmd/cvet
+	github.com/mgechev/revive
 	github.com/securego/gosec/v2/cmd/gosec
 	golang.org/x/vuln/cmd/govulncheck
 	honnef.co/go/tools/cmd/staticcheck
