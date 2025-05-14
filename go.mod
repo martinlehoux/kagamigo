@@ -1,8 +1,6 @@
 module github.com/martinlehoux/kagamigo
 
-go 1.23.0
-
-toolchain go1.23.6
+go 1.24
 
 require (
 	github.com/a-h/templ v0.3.833
