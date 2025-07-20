@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/martinlehoux/kagamigo/kcore"
 	"github.com/samber/lo"
 	"github.com/samber/lo/mutable"
@@ -25,10 +23,10 @@ import (
 )
 
 type Record struct {
-	keyword string
-	path    string
-	line    int
-	date    time.Time
+	keyword      string
+	relativePath string
+	line         int
+	date         time.Time
 }
 
 var (
@@ -108,13 +106,10 @@ func main() {
 	}
 	slog.Info("Scanning repository", "repo", repoPath, "sort", sortBy, "max", maxRecords, "after", after.Format(time.DateOnly), "before", before.Format(time.DateOnly), "algo", algo)
 
-	repo, err := git.PlainOpen(path.Join(repoPath, ".git"))
-	kcore.Expect(err, "Error opening repository")
-	ref, err := repo.Head()
-	kcore.Expect(err, "Error getting HEAD")
-	head, err := repo.CommitObject(ref.Hash())
-	kcore.Expect(err, "Error getting commit object")
-	kcore.Expect(walkRepo(keywords, head, &records), "Error walking directory")
+	factory, err := CreateRecordExtractorFactory(algo, repoPath)
+	kcore.Expect(err, "Error creating record extractor factory")
+
+	kcore.Expect(walkRepo(keywords, factory, &records), "Error walking directory")
 
 	if !after.IsZero() {
 		records = lo.Filter(records, func(record Record, index int) bool { return record.date.After(after) })
@@ -129,7 +124,7 @@ func main() {
 	}
 	fmt.Println("")
 	for _, record := range records[:min(maxRecords, len(records))] {
-		fmt.Printf("%s\t %s:%d\n", record.date.Format("2006-01-02"), record.path, record.line)
+		fmt.Printf("%s\t %s:%d\n", record.date.Format(time.DateOnly), record.relativePath, record.line)
 	}
 }
 
@@ -161,7 +156,7 @@ func isBinaryFile(absolutePath, relativePath string) bool {
 	return false
 }
 
-func walkRepo(keywords []string, head *object.Commit, records *[]Record) error {
+func walkRepo(keywords []string, factory RecordExtractorFactory, records *[]Record) error {
 	progress := progressbar.Default(-1, "Scanning")
 	return filepath.WalkDir(repoPath, func(path string, d fs.DirEntry, err error) error {
 		relativePath := strings.TrimPrefix(path, repoPath)
@@ -186,7 +181,7 @@ func walkRepo(keywords []string, head *object.Commit, records *[]Record) error {
 			return nil
 		}
 		kcore.Expect(progress.Add(1), "Error incrementing progress")
-		return processFile(repoPath, relativePath, keywords, records, head)
+		return processFile(repoPath, relativePath, keywords, records, factory)
 	})
 }
 
@@ -195,7 +190,7 @@ type MatchingLine struct {
 	keyword string
 }
 
-func processFile(repoPath string, relativePath string, keywords []string, records *[]Record, head *object.Commit) error {
+func processFile(repoPath string, relativePath string, keywords []string, records *[]Record, factory RecordExtractorFactory) error {
 	absolutePath := path.Join(repoPath, relativePath)
 	content, err := os.ReadFile(absolutePath) // #nosec G304
 	if err != nil {
@@ -215,22 +210,22 @@ func processFile(repoPath string, relativePath string, keywords []string, record
 		return nil
 	}
 
-	// TODO: Extract outer
-	var recordExtractor RecordExtractor
-	switch algo {
-	case "git":
-		recordExtractor = &GitRecordExtractor{repoPath: repoPath}
-	case "go-git":
-		recordExtractor = NewGoGitRecordExtractor(head, relativePath)
-	case "stat":
-		recordExtractor = NewStatRecordExtractor(absolutePath)
+	recordExtractor, err := factory.CreateExtractor(relativePath)
+	switch err {
+	case ErrNotTracked:
+		return nil
+	case nil:
+		break
+	default:
+		return kcore.Wrap(err, "Error creating record extractor")
 	}
-	kcore.Assert(recordExtractor != nil, "wrong algo value (git, go-git, stat)")
+
 	for _, line := range matchingLines {
-		record, err := recordExtractor.Extract(line.keyword, relativePath, line.line)
+		record, err := recordExtractor.Extract(line.keyword, line.line)
 		if err != nil {
 			slog.Warn("Error extracting record", "err", err)
 		} else {
+			record.relativePath = relativePath
 			*records = append(*records, record)
 		}
 	}

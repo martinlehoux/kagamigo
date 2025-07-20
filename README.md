@@ -7,6 +7,7 @@
 ## kdev
 
 - [ ] Ignore regex
+- [ ] Log level
 
 ## gettext
 

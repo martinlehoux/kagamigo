@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -14,27 +15,84 @@ import (
 	"github.com/martinlehoux/kagamigo/kcore"
 )
 
+type RecordExtractorFactory interface {
+	CreateExtractor(relativePath string) (RecordExtractor, error)
+}
+
 type RecordExtractor interface {
-	Extract(keyword string, path string, line int) (Record, error)
+	Extract(keyword string, line int) (Record, error)
+}
+
+var ErrNotTracked = fmt.Errorf("file is not tracked by git")
+
+func CreateRecordExtractorFactory(algo, repoPath string) (RecordExtractorFactory, error) {
+	switch algo {
+	case "git":
+		return &GitRecordExtractorFactory{repoPath: repoPath}, nil
+	case "go-git":
+		return NewGoGitRecordExtractorFactory(repoPath)
+	case "stat":
+		return &StatRecordExtractorFactory{repoPath: repoPath}, nil
+	default:
+		return nil, fmt.Errorf("unsupported algorithm: %s", algo)
+	}
+}
+
+type GitRecordExtractorFactory struct {
+	repoPath string
+}
+
+func (f *GitRecordExtractorFactory) CreateExtractor(relativePath string) (RecordExtractor, error) {
+	cmd := exec.Command("git", "ls-files", "--error-unmatch", relativePath)
+	cmd.Dir = f.repoPath
+	if err := cmd.Run(); err != nil {
+		return nil, ErrNotTracked
+	}
+	return &GitRecordExtractor{repoPath: f.repoPath, relativePath: relativePath}, nil
+}
+
+type GoGitRecordExtractorFactory struct {
+	head *object.Commit
+}
+
+func NewGoGitRecordExtractorFactory(repoPath string) (*GoGitRecordExtractorFactory, error) {
+	repo, err := git.PlainOpen(path.Join(repoPath, ".git"))
+	kcore.Expect(err, "Error opening repository")
+	ref, err := repo.Head()
+	kcore.Expect(err, "Error getting HEAD")
+	head, err := repo.CommitObject(ref.Hash())
+	kcore.Expect(err, "Error getting commit object")
+	return &GoGitRecordExtractorFactory{head: head}, nil
+}
+
+func (f *GoGitRecordExtractorFactory) CreateExtractor(relativePath string) (RecordExtractor, error) {
+	blame, err := git.Blame(f.head, relativePath)
+	if err == object.ErrFileNotFound {
+		return nil, err
+	}
+	return &GoGitRecordExtractor{blame: blame}, nil
+}
+
+type StatRecordExtractorFactory struct {
+	repoPath string
+}
+
+func (f *StatRecordExtractorFactory) CreateExtractor(relativePath string) (RecordExtractor, error) {
+	fileInfo, err := os.Stat(path.Join(f.repoPath, relativePath))
+	kcore.Expect(err, "Error getting file info")
+
+	return &StatRecordExtractor{
+		fileInfo: fileInfo,
+	}, nil
 }
 
 type StatRecordExtractor struct {
 	fileInfo fs.FileInfo
 }
 
-func NewStatRecordExtractor(absolutePath string) *StatRecordExtractor {
-	fileInfo, err := os.Stat(absolutePath)
-	kcore.Expect(err, "Error getting file info")
-
-	return &StatRecordExtractor{
-		fileInfo: fileInfo,
-	}
-}
-
-func (re *StatRecordExtractor) Extract(keyword string, path string, line int) (Record, error) {
+func (re *StatRecordExtractor) Extract(keyword string, line int) (Record, error) {
 	return Record{
 		keyword: keyword,
-		path:    path,
 		line:    line,
 		date:    re.fileInfo.ModTime(),
 	}, nil
@@ -44,8 +102,8 @@ type GoGitRecordExtractor struct {
 	blame *git.BlameResult
 }
 
-func NewGoGitRecordExtractor(head *object.Commit, path string) *GoGitRecordExtractor {
-	blame, err := git.Blame(head, path)
+func NewGoGitRecordExtractor(head *object.Commit, relativePath string) *GoGitRecordExtractor {
+	blame, err := git.Blame(head, relativePath)
 	if err == object.ErrFileNotFound {
 		return nil
 	}
@@ -54,32 +112,30 @@ func NewGoGitRecordExtractor(head *object.Commit, path string) *GoGitRecordExtra
 	}
 }
 
-func (re *GoGitRecordExtractor) Extract(keyword string, path string, line int) (Record, error) {
+func (re *GoGitRecordExtractor) Extract(keyword string, line int) (Record, error) {
 	record := Record{
 		keyword: keyword,
-		path:    path,
 		line:    line,
+		date:    re.blame.Lines[line-1].Date,
 	}
-	record.date = re.blame.Lines[line-1].Date
 
 	return record, nil
 }
 
 type GitRecordExtractor struct {
-	repoPath string
+	repoPath     string
+	relativePath string
 }
 
-func (re *GitRecordExtractor) Extract(keyword string, path string, line int) (Record, error) {
+func (re *GitRecordExtractor) Extract(keyword string, line int) (Record, error) {
 	record := Record{
 		keyword: keyword,
-		path:    path,
 		line:    line,
 	}
-	gitArgs := []string{"blame", "-L", fmt.Sprintf("%d,%d", line, line), "--porcelain", path}
+	gitArgs := []string{"blame", "-L", fmt.Sprintf("%d,%d", line, line), "--porcelain", re.relativePath}
 	cmd := exec.Command("git", gitArgs...) // #nosec G204
 	cmd.Dir = re.repoPath
 	output, err := cmd.Output()
-
 	if err != nil {
 		return record, kcore.Wrap(err, fmt.Sprintf("Error running: git %s", strings.Join(gitArgs, " ")))
 	}
