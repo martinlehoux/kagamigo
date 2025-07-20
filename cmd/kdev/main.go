@@ -31,15 +31,18 @@ type Record struct {
 	date    time.Time
 }
 
-var excludes map[string]bool = map[string]bool{}
-var repoPath string
-var after time.Time
-var before time.Time
-var sortBy string
-var maxRecords int
-var algo string
-var cpuProfile string
-var keywords []string
+var (
+	excludes      map[string]bool = map[string]bool{}
+	repoPath      string
+	after         time.Time
+	before        time.Time
+	sortBy        string
+	maxRecords    int
+	algo          string
+	cpuProfile    string
+	keywords      []string
+	binExtensions = map[string]bool{}
+)
 
 func initConfig() {
 	var err error
@@ -130,6 +133,34 @@ func main() {
 	}
 }
 
+func isBinaryFile(absolutePath, relativePath string) bool {
+	// First check by file extension (fast)
+	ext := strings.ToLower(filepath.Ext(relativePath))
+	if _, ok := binExtensions[ext]; ok {
+		return true
+	}
+
+	file, err := os.Open(absolutePath)
+	kcore.Expect(err, "failed to open file")
+	defer file.Close()
+
+	// Read first 512 bytes to check for binary content
+	buffer := make([]byte, 512)
+	n, err := file.Read(buffer)
+	if err != nil && n == 0 {
+		return false
+	}
+
+	// Check for null bytes which indicate binary content
+	for i := range n {
+		if buffer[i] == 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
 func walkRepo(keywords []string, head *object.Commit, records *[]Record) error {
 	progress := progressbar.Default(-1, "Scanning")
 	return filepath.WalkDir(repoPath, func(path string, d fs.DirEntry, err error) error {
@@ -148,11 +179,14 @@ func walkRepo(keywords []string, head *object.Commit, records *[]Record) error {
 		if d.Type()&fs.ModeSymlink != 0 {
 			return nil
 		}
-		if !d.IsDir() {
-			kcore.Expect(progress.Add(1), "Error incrementing progress")
-			return processFile(repoPath, relativePath, keywords, records, head)
+		if d.IsDir() {
+			return nil
 		}
-		return nil
+		if isBinaryFile(path, relativePath) {
+			return nil
+		}
+		kcore.Expect(progress.Add(1), "Error incrementing progress")
+		return processFile(repoPath, relativePath, keywords, records, head)
 	})
 }
 
@@ -181,6 +215,7 @@ func processFile(repoPath string, relativePath string, keywords []string, record
 		return nil
 	}
 
+	// TODO: Extract outer
 	var recordExtractor RecordExtractor
 	switch algo {
 	case "git":

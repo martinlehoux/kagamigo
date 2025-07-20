@@ -6,7 +6,6 @@
 
 ## kdev
 
-- [ ] Ignore bin files
 - [ ] Ignore regex
 
 ## gettext
