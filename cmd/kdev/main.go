@@ -135,7 +135,7 @@ func isBinaryFile(absolutePath, relativePath string) bool {
 		return true
 	}
 
-	file, err := os.Open(absolutePath)
+	file, err := os.Open(absolutePath) // #nosec G304 Repo walking
 	kcore.Expect(err, "failed to open file")
 	defer file.Close()
 
