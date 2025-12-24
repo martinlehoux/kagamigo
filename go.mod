@@ -248,7 +248,6 @@ require (
 )
 
 tool (
-	github.com/fzipp/gocyclo/cmd/gocyclo
 	github.com/golangci/golangci-lint/cmd/golangci-lint
 	github.com/martinlehoux/kagamigo/cmd/cvet
 	github.com/mgechev/revive
