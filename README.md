@@ -21,5 +21,18 @@
 
 ## web
 
-- Use reflection add startup time to add metadata to logging
-- Save aggregate + an event with time & actor (event streaming)
+- [ ] Use reflection add startup time to add metadata to logging
+- [ ] Save aggregate + an event with time & actor (event streaming)
+
+## kcore
+
+```go
+handler.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+  kcore.RenderPage(r.Context(), pages.HomePage(), w)
+})
+```
+
+```go
+block, err := aes.NewCipher(secret)
+kcore.Expect(err, "error creating AES cipher")
+```
