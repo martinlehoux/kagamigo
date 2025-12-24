@@ -36,3 +36,7 @@ handler.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 block, err := aes.NewCipher(secret)
 kcore.Expect(err, "error creating AES cipher")
 ```
+
+## kauth
+
+- [ ] Auto logout for some errors (unreachable user, expired)
