@@ -26,3 +26,11 @@ func RenderPage(ctx context.Context, page templ.Component, w http.ResponseWriter
 	_, err = buf.WriteTo(w)
 	Expect(err, "error writing page to response writer")
 }
+
+func Unauthorized(w http.ResponseWriter, err error) {
+	w.WriteHeader(http.StatusUnauthorized)
+	if err != nil {
+		_, err = w.Write([]byte(err.Error()))
+		Expect(err, "error writing response")
+	}
+}
