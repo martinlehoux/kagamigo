@@ -30,6 +30,15 @@ func TestVariables(t *testing.T) {
 	assert.Equal(t, "Bonjour John", result)
 }
 
+func TestSpanClass(t *testing.T) {
+	initFrenchLocale(map[string]string{
+		"Hello <span class=\"text-bold\">%s</span>": "Bonjour <span class=\"text-bold\">%s</span>",
+	})
+
+	result := render(t, Tr("fr-FR", "Hello <span class=\"text-bold\">%s</span>", "John"))
+	assert.Equal(t, "Bonjour <span class=\"text-bold\">John</span>", result)
+}
+
 // render is a test helper that renders a component and returns the result as a string
 func render(t *testing.T, c templ.Component) string {
 	t.Helper()
