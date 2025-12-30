@@ -7,7 +7,7 @@ import (
 )
 
 func TestExtractKeys(t *testing.T) {
-	content := `{ login.Tr("Hello") }`
+	content := `{ login.Tr("fr", "Hello") }`
 
 	keys := extractKeys(content)
 
@@ -16,7 +16,7 @@ func TestExtractKeys(t *testing.T) {
 }
 
 func TestExtractKeysWithoutSpaces(t *testing.T) {
-	content := `{login.Tr("Hello")}`
+	content := `{login.Tr("fr", "Hello")}`
 
 	keys := extractKeys(content)
 
@@ -25,7 +25,7 @@ func TestExtractKeysWithoutSpaces(t *testing.T) {
 }
 
 func TestExtractKeysWithOneArgs(t *testing.T) {
-	content := `{ login.Tr("approveButton", a.Username) }`
+	content := `{ login.Tr("fr", "approveButton", a.Username) }`
 
 	keys := extractKeys(content)
 
@@ -34,7 +34,7 @@ func TestExtractKeysWithOneArgs(t *testing.T) {
 }
 
 func TestExtractKeysWithSeveralArgs(t *testing.T) {
-	content := `{ login.Tr("approveButton", a.Username, a.Age, a.Email) }`
+	content := `{ login.Tr("fr", "approveButton", a.Username, a.Age, a.Email) }`
 
 	keys := extractKeys(content)
 
@@ -43,7 +43,7 @@ func TestExtractKeysWithSeveralArgs(t *testing.T) {
 }
 
 func TestExtractKeysWithComplexArgs(t *testing.T) {
-	content := `{ login.Tr("raceStart_chosen", a.StartAt.Format("Monday, January 2, 2006 at 15:04")) }`
+	content := `{ login.Tr("fr", "raceStart_chosen", a.StartAt.Format("Monday, January 2, 2006 at 15:04")) }`
 
 	keys := extractKeys(content)
 
@@ -52,7 +52,7 @@ func TestExtractKeysWithComplexArgs(t *testing.T) {
 }
 
 func TestExtractMultipleKeys(t *testing.T) {
-	content := `{ login.Tr("test_1", a.StartAt.Format("Monday, January 2, 2006 at 15:04")) }{ login.Tr("test_2", a.Test) }`
+	content := `{ login.Tr("fr", "test_1", a.StartAt.Format("Monday, January 2, 2006 at 15:04")) }{ login.Tr("fr", "test_2", a.Test) }`
 
 	keys := extractKeys(content)
 
@@ -62,10 +62,19 @@ func TestExtractMultipleKeys(t *testing.T) {
 }
 
 func TestExtractKeyFromSimpleTrFunc(t *testing.T) {
-	content := `{ Tr("test") }`
+	content := `{ Tr("fr", "test") }`
 
 	keys := extractKeys(content)
 
 	assert.Len(t, keys, 1)
 	assert.Equal(t, 0, keys["test"])
+}
+
+func TestExtractKeyWithSpan(t *testing.T) {
+	content := `{ Tr("fr", "Hello <span class=\"text-bold\">%s</span>", username) }`
+
+	keys := extractKeys(content)
+
+	assert.Len(t, keys, 1)
+	assert.Equal(t, 1, keys["Hello <span class=\"text-bold\">%s</span>"])
 }

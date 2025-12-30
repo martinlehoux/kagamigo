@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/martinlehoux/kagamigo/kcore"
@@ -84,11 +85,11 @@ func (p ArgsParser) ArgsCount() int {
 
 func extractKeys(content string) map[string]int {
 	extractedKeys := make(map[string]int, 0)
-	reg := regexp.MustCompile(`\{ ?((?:login\.)?Tr\("\w+"[\w"(),. :]*\) ?)\}`)
+	reg := regexp.MustCompile(`\{ ?((?:login\.)?Tr\("[^"]*"[^}]*\) ?)\}`)
 	matches := reg.FindAllStringSubmatch(content, -1)
 	for _, match := range matches {
 		fakePackage := fmt.Sprintf(`package main
-	
+
 		func main() {
 			%s
 		}
@@ -109,8 +110,13 @@ func extractKeys(content string) map[string]int {
 			isTrCall = ident.Name == "Tr"
 		}
 		if isTrCall {
-			key := strings.Trim(call.Args[0].(*ast.BasicLit).Value, `"`)
-			extractedKeys[key] = len(call.Args) - 1
+			keyLiteral := call.Args[1].(*ast.BasicLit).Value
+			key, err := strconv.Unquote(keyLiteral)
+			if err != nil {
+				slog.Warn("error unquoting key", "key", keyLiteral)
+				key = strings.Trim(keyLiteral, `"`)
+			}
+			extractedKeys[key] = len(call.Args) - 2
 		}
 	}
 	return extractedKeys
@@ -139,9 +145,9 @@ func getOrCreateLocale(lang string, logger *slog.Logger) map[string]string {
 	locales, err := os.ReadFile(filepath.Join("locales", lang, "index.yml")) // #nosec G304
 	if errors.Is(err, os.ErrNotExist) {
 		logger.Info("no locales file found, creating")
-		err = os.MkdirAll(filepath.Join("locales", lang), 0700)
+		err = os.MkdirAll(filepath.Join("locales", lang), 0o700)
 		kcore.Expect(err, "error creating directory")
-		err = os.WriteFile(filepath.Join("locales", lang, "index.yml"), []byte{}, 0600)
+		err = os.WriteFile(filepath.Join("locales", lang, "index.yml"), []byte{}, 0o600)
 		kcore.Expect(err, "error writing file")
 		locales, err = os.ReadFile(filepath.Join("locales", lang, "index.yml")) // #nosec G304
 		kcore.Expect(err, "error reading file")
@@ -201,7 +207,7 @@ func main() {
 		if *write {
 			content, err := yaml.Marshal(newLocales)
 			kcore.Expect(err, "error marshalling yaml")
-			kcore.Expect(os.WriteFile(filepath.Join("locales", lang, "index.yml"), content, 0600), "error writing file")
+			kcore.Expect(os.WriteFile(filepath.Join("locales", lang, "index.yml"), content, 0o600), "error writing file")
 		}
 	}
 }
