@@ -9,10 +9,12 @@
 - [ ] Ignore regex
 - [ ] Log level
 
-## gettext
+## ki18n
 
-- Add gettext to CI
-- Add time handling
+- [ ] Document
+- [ ] Add gettext to CI
+- [ ] Add time handling
+- [ ] Use request data for default lang
 
 1.  `go run github.com/martinlehoux/kagamigo/cmd/gettext -write`
 2.  Use `Tr("key", value...)` in you templ files
