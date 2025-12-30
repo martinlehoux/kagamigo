@@ -8,6 +8,7 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/a-h/templ"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,11 +17,8 @@ func TestSimpleText(t *testing.T) {
 		"Hello you": "Bonjour toi",
 	})
 
-	c := Tr("fr-FR", "Hello you")
-	w := &bytes.Buffer{}
-	err := c.Render(context.Background(), w)
-	assert.NoError(t, err)
-	assert.Equal(t, "Bonjour toi", w.String())
+	result := render(t, Tr("fr-FR", "Hello you"))
+	assert.Equal(t, "Bonjour toi", result)
 }
 
 func TestVariables(t *testing.T) {
@@ -28,11 +26,17 @@ func TestVariables(t *testing.T) {
 		"Hello %s": "Bonjour %s",
 	})
 
-	c := Tr("fr-FR", "Hello %s", "John")
+	result := render(t, Tr("fr-FR", "Hello %s", "John"))
+	assert.Equal(t, "Bonjour John", result)
+}
+
+// render is a test helper that renders a component and returns the result as a string
+func render(t *testing.T, c templ.Component) string {
+	t.Helper()
 	w := &bytes.Buffer{}
 	err := c.Render(context.Background(), w)
 	assert.NoError(t, err)
-	assert.Equal(t, "Bonjour John", w.String())
+	return w.String()
 }
 
 // initFrenchLocale creates a filesystem with fr-FR locale from a translation map
