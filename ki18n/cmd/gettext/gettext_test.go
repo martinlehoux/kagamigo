@@ -78,3 +78,21 @@ func TestExtractKeyWithSpan(t *testing.T) {
 	assert.Len(t, keys, 1)
 	assert.Equal(t, 1, keys["Hello <span class=\"text-bold\">%s</span>"])
 }
+
+func TestComponent(t *testing.T) {
+	content := `@ki18n.Tr(login.Lng, "Recharge yourself in nature.")`
+
+	keys := extractKeys(content)
+
+	assert.Len(t, keys, 1)
+	assert.Equal(t, 0, keys["Recharge yourself in nature."])
+}
+
+func TestStr(t *testing.T) {
+	content := `{ ki18n.Str(login.Lng, "Username") }`
+
+	keys := extractKeys(content)
+
+	assert.Len(t, keys, 1)
+	assert.Equal(t, 0, keys["Username"])
+}

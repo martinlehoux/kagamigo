@@ -8,6 +8,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -85,30 +86,19 @@ func (p ArgsParser) ArgsCount() int {
 
 func extractKeys(content string) map[string]int {
 	extractedKeys := make(map[string]int, 0)
-	reg := regexp.MustCompile(`\{ ?((?:login\.)?Tr\("[^"]*"[^}]*\) ?)\}`)
+	// Match both { ... } style and @ki18n.Tr(...) style, supporting both Tr and Str functions
+	reg := regexp.MustCompile(`(?:\{ ?((?:login\.|ki18n\.)?(?:Tr|Str)\([^}]*\) ?)\}|@ki18n\.Tr\(([^)]+)\))`)
 	matches := reg.FindAllStringSubmatch(content, -1)
 	for _, match := range matches {
-		fakePackage := fmt.Sprintf(`package main
-
-		func main() {
-			%s
+		var trCall string
+		if match[1] != "" {
+			// { ... } style match
+			trCall = match[1]
+		} else {
+			// @ki18n.Tr(...) style match
+			trCall = "ki18n.Tr(" + match[2] + ")"
 		}
-		`, match[1])
-		fset := token.NewFileSet()
-		f, err := parser.ParseFile(fset, "", fakePackage, 0)
-		kcore.Expect(err, "error parsing file")
-		main := f.Decls[0].(*ast.FuncDecl)
-		call := main.Body.List[0].(*ast.ExprStmt).X.(*ast.CallExpr)
-		isTrCall := false
-		switch call.Fun.(type) {
-		case *ast.SelectorExpr:
-			selector := call.Fun.(*ast.SelectorExpr)
-			isTrCall = selector.Sel.Name == "Tr"
-
-		case *ast.Ident:
-			ident := call.Fun.(*ast.Ident)
-			isTrCall = ident.Name == "Tr"
-		}
+		call, isTrCall := parseTrCall(trCall)
 		if isTrCall {
 			keyLiteral := call.Args[1].(*ast.BasicLit).Value
 			key, err := strconv.Unquote(keyLiteral)
@@ -122,6 +112,25 @@ func extractKeys(content string) map[string]int {
 	return extractedKeys
 }
 
+func parseTrCall(trCall string) (*ast.CallExpr, bool) {
+	fakePackage := fmt.Sprintf("package main\nfunc main() {\n	%s\n}", trCall)
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "", fakePackage, 0)
+	kcore.Expect(err, "error parsing file")
+	main := f.Decls[0].(*ast.FuncDecl)
+	call := main.Body.List[0].(*ast.ExprStmt).X.(*ast.CallExpr)
+	switch call.Fun.(type) {
+	case *ast.SelectorExpr:
+		selector := call.Fun.(*ast.SelectorExpr)
+		return call, selector.Sel.Name == "Tr" || selector.Sel.Name == "Str"
+
+	case *ast.Ident:
+		ident := call.Fun.(*ast.Ident)
+		return call, ident.Name == "Tr" || ident.Name == "Str"
+	}
+	return call, false
+}
+
 func extractAllKeys() map[string]int {
 	extractedKeys := make(map[string]int, 0)
 
@@ -129,9 +138,7 @@ func extractAllKeys() map[string]int {
 		if !info.IsDir() && filepath.Ext(path) == ".templ" {
 			content, err := os.ReadFile(path) // #nosec G304
 			kcore.Expect(err, "error reading file")
-			for key, value := range extractKeys(string(content)) {
-				extractedKeys[key] = value
-			}
+			maps.Copy(extractedKeys, extractKeys(string(content)))
 		}
 		return nil
 	})
