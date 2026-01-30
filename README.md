@@ -42,3 +42,4 @@ kcore.Expect(err, "error creating AES cipher")
 ## kauth
 
 - [ ] Auto logout for some errors (unreachable user, expired)
+- [ ] Revisit the login and signup flow
