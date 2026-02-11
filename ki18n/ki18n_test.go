@@ -9,6 +9,7 @@ import (
 	"testing/fstest"
 
 	"github.com/a-h/templ"
+	"github.com/martinlehoux/kagamigo/kcore"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -60,5 +61,5 @@ func initFrenchLocale(translations map[string]string) {
 			Data: []byte(sb.String()),
 		},
 	}
-	Init(fs)
+	kcore.Expect(Init(fs), "failed to init fs")
 }
