@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/a-h/templ v0.3.1001
-	github.com/go-git/go-git/v5 v5.17.0
+	github.com/go-git/go-git/v5 v5.17.2
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/kataras/i18n v0.0.8
 	github.com/samber/lo v1.53.0
