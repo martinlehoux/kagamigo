@@ -6,7 +6,11 @@
 
 ## kdev
 
+`go run github.com/martinlehoux/kagamigo/cmd/kdev --repo=<repo>`
+
+- [ ] Ignore bin files or too large
 - [ ] Ignore regex
+- [ ] Parallel
 - [ ] Log level
 
 ## ki18n
