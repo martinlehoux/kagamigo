@@ -16,11 +16,10 @@
 ## ki18n
 
 - [ ] Add gettext to CI
-- [ ] Add time handling
 
 ### Setup
 
-1. Call `ki18n.Init(localesFS)` at startup with a filesystem containing `<lang>/*.yml` translation files.
+1. Call `ki18n.Init(localesFS)` at startup with a filesystem containing `<lang>/*.yml` translation files. Pass extra `ki18n.Locale` values to register additional languages.
 2. Register `ki18n.LangMiddleware(...)` on your router, passing one or more strategies in priority order.
 3. Run `go run github.com/martinlehoux/kagamigo/cmd/gettext -write` to generate translation files.
 4. Complete the generated files.
@@ -40,6 +39,25 @@ Built-in strategies:
 - `ki18n.AcceptLanguageStrategy` — parses the `Accept-Language` request header
 
 If no strategy resolves a language, the middleware falls back to `en-GB`.
+
+### Formatting dates
+
+```go
+ki18n.FormatTime(ctx, time.Now()) // "12 May 2026" in en-GB, "12 mai 2026" in fr-FR
+```
+
+To add a language, pass a `Locale` to `Init`:
+
+```go
+ki18n.Init(localesFS, ki18n.Locale{
+    Lang: "es-ES",
+    FormatTime: func(t time.Time) string {
+        return fmt.Sprintf("%d de %s de %d", t.Day(), spanishMonths[t.Month()-1], t.Year())
+    },
+})
+```
+
+`FormatTime` is optional on `Locale` — omit it to fall back to `en-GB` date formatting.
 
 ### Translating in templ files
 

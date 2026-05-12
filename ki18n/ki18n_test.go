@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/martinlehoux/kagamigo/kcore"
@@ -52,6 +53,64 @@ func TestTr_withoutLangInContext(t *testing.T) {
 
 	result := render(t, Tr(context.Background(), "Hello"))
 	assert.Equal(t, "Hello", result)
+}
+
+func TestFormatTime_englishLocale(t *testing.T) {
+	ctx := context.WithValue(context.Background(), contextKey{}, "en-GB")
+	d := time.Date(2026, time.May, 12, 0, 0, 0, 0, time.UTC)
+
+	assert.Equal(t, "12 May 2026", FormatTime(ctx, d))
+}
+
+func TestFormatTime_frenchLocale(t *testing.T) {
+	ctx := context.WithValue(context.Background(), contextKey{}, "fr-FR")
+	d := time.Date(2026, time.May, 12, 0, 0, 0, 0, time.UTC)
+
+	assert.Equal(t, "12 mai 2026", FormatTime(ctx, d))
+}
+
+func TestFormatTime_unknownLocale(t *testing.T) {
+	ctx := context.WithValue(context.Background(), contextKey{}, "de-DE")
+	d := time.Date(2026, time.May, 12, 0, 0, 0, 0, time.UTC)
+
+	assert.Equal(t, "12 May 2026", FormatTime(ctx, d))
+}
+
+func TestFormatTime_extraLocale(t *testing.T) {
+	spanishMonths := [...]string{
+		"enero", "febrero", "marzo", "abril", "mayo", "junio",
+		"julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+	}
+	fs := fstest.MapFS{
+		"es-ES/index.yml": &fstest.MapFile{Data: []byte{}},
+	}
+	kcore.Expect(Init(fs, Locale{
+		Lang: "es-ES",
+		FormatTime: func(t time.Time) string {
+			return fmt.Sprintf("%d de %s de %d", t.Day(), spanishMonths[t.Month()-1], t.Year())
+		},
+	}), "failed to init fs")
+	ctx := context.WithValue(context.Background(), contextKey{}, "es-ES")
+	d := time.Date(2026, time.May, 12, 0, 0, 0, 0, time.UTC)
+
+	assert.Equal(t, "12 de mayo de 2026", FormatTime(ctx, d))
+}
+
+func TestFormatTime_extraLocaleNoFormatter(t *testing.T) {
+	fs := fstest.MapFS{
+		"es-ES/index.yml": &fstest.MapFile{Data: []byte{}},
+	}
+	kcore.Expect(Init(fs, Locale{Lang: "es-ES"}), "failed to init fs")
+	ctx := context.WithValue(context.Background(), contextKey{}, "es-ES")
+	d := time.Date(2026, time.May, 12, 0, 0, 0, 0, time.UTC)
+
+	assert.Equal(t, "12 May 2026", FormatTime(ctx, d))
+}
+
+func TestFormatTime_noLocaleInContext(t *testing.T) {
+	d := time.Date(2026, time.May, 12, 0, 0, 0, 0, time.UTC)
+
+	assert.Equal(t, "12 May 2026", FormatTime(context.Background(), d))
 }
 
 func TestCookieStrategy_found(t *testing.T) {
