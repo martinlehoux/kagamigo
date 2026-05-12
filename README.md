@@ -1,7 +1,8 @@
 ## Publishing a new version
 
+- Run `task check`
 - Push the code
-- Once the pipeline is green, `git tag vx.x.x`
+- `git tag vx.x.x`
 - `git push --tags`
 
 ## kdev
