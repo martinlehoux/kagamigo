@@ -174,6 +174,7 @@ func main() {
 	extractedKeys := extractAllKeys()
 	baseLogger.Info("extracted keys from templates", slog.Int("count", len(extractedKeys)))
 
+	missingKeys := false
 	for _, lang := range langs {
 		logger := baseLogger.With(slog.String("lang", lang))
 		currentLocales := getOrCreateLocale(lang, logger)
@@ -201,6 +202,7 @@ func main() {
 			if _, ok := currentLocales[key]; !ok {
 				logger.Info(`found missing key`, slog.String("key", key))
 				newLocales[key] = ""
+				missingKeys = true
 			}
 		}
 		var completion string
@@ -216,5 +218,9 @@ func main() {
 			kcore.Expect(err, "error marshalling yaml")
 			kcore.Expect(os.WriteFile(filepath.Join("locales", lang, "index.yml"), content, 0o600), "error writing file")
 		}
+	}
+
+	if missingKeys {
+		os.Exit(1)
 	}
 }

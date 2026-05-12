@@ -6,6 +6,10 @@ tasks:
     cmds:
       - go tool templ generate
 
+  gettext:
+    cmds:
+      - go run github.com/martinlehoux/kagamigo/ki18n/cmd/gettext
+
   check:
     cmds:
       - gofmt -d -e -s .
@@ -17,6 +21,7 @@ tasks:
       - go test -race ./...
       - go tool revive
       - go mod tidy
+      - task gettext
 
   tools:
     cmds:

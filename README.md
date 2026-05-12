@@ -15,14 +15,17 @@
 
 ## ki18n
 
-- [ ] Add gettext to CI
-
 ### Setup
 
 1. Call `ki18n.Init(localesFS)` at startup with a filesystem containing `<lang>/*.yml` translation files. Pass extra `ki18n.Locale` values to register additional languages.
 2. Register `ki18n.LangMiddleware(...)` on your router, passing one or more strategies in priority order.
-3. Run `go run github.com/martinlehoux/kagamigo/cmd/gettext -write` to generate translation files.
+3. Run `go run github.com/martinlehoux/kagamigo/ki18n/cmd/gettext -write` to generate translation files.
 4. Complete the generated files.
+5. Add the check to CI — exits 1 if any translation key is missing from a locale file:
+
+```sh
+go run github.com/martinlehoux/kagamigo/ki18n/cmd/gettext
+```
 
 ### Language detection strategies
 
