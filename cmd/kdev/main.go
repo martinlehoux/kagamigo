@@ -62,6 +62,7 @@ func initConfig() {
 	pflag.String("logLevel", "info", "Log level (debug, info, warn, error)")
 	pflag.Int64("maxFileSize", 1024*1024, "Skip files larger than this size in bytes")
 	pflag.StringSlice("ignore", []string{}, "Regex patterns to ignore files by relative path")
+	pflag.StringSlice("keywords", []string{}, "Keywords to search for")
 	pflag.Parse()
 
 	viper.SetConfigType("yaml")
@@ -126,7 +127,14 @@ func main() {
 		kcore.Expect(pprof.StartCPUProfile(f), "Error starting CPU profile")
 		defer pprof.StopCPUProfile()
 	}
-	slog.Info("Scanning repository", "repo", repoPath, "sort", sortBy, "max", maxRecords, "after", after.Format(time.DateOnly), "before", before.Format(time.DateOnly), "algo", algo)
+	logArgs := []any{"repo", repoPath, "sort", sortBy, "max", maxRecords, "algo", algo}
+	if !after.IsZero() {
+		logArgs = append(logArgs, "after", after.Format(time.DateOnly))
+	}
+	if !before.IsZero() {
+		logArgs = append(logArgs, "before", before.Format(time.DateOnly))
+	}
+	slog.Info("Scanning repository", logArgs...)
 
 	factory, err := CreateRecordExtractorFactory(algo, repoPath)
 	kcore.Expect(err, "Error creating record extractor factory")
@@ -204,7 +212,7 @@ func walkRepo(keywords []string, factory RecordExtractorFactory, records *[]Reco
 		}
 	}()
 
-	progress := progressbar.Default(-1, "Scanning")
+	progress := progressbar.NewOptions(-1, progressbar.OptionSetDescription("Scanning"), progressbar.OptionClearOnFinish(), progressbar.OptionSetWriter(os.Stderr))
 	walkErr := filepath.WalkDir(repoPath, func(path string, d fs.DirEntry, err error) error {
 		relativePath := strings.TrimPrefix(path, repoPath)
 		progress.Describe(relativePath)
@@ -248,7 +256,9 @@ func walkRepo(keywords []string, factory RecordExtractorFactory, records *[]Reco
 	close(results)
 	collectorDone.Wait()
 
-	slog.Info("Scan complete", "workers", workers, "files_processed", len(*records))
+	filesScanned := progress.State().CurrentNum
+	kcore.Expect(progress.Finish(), "Error finishing progress bar")
+	slog.Info("Scan complete", "workers", workers, "files_scanned", filesScanned)
 	return walkErr
 }
 
