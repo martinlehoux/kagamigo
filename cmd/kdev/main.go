@@ -69,7 +69,11 @@ func initConfig() {
 	viper.AddConfigPath(".")
 	viper.AddConfigPath(repoPath)
 	kcore.Expect(viper.BindPFlags(pflag.CommandLine), "Error binding flags")
-	kcore.Expect(viper.ReadInConfig(), "Error reading config file")
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			kcore.Expect(err, "Error reading config file")
+		}
+	}
 
 	if afterStr := viper.GetString("after"); afterStr != "" {
 		after, err = time.Parse(time.DateOnly, viper.GetString("after"))
@@ -113,6 +117,7 @@ func initConfig() {
 func main() {
 	var err error
 	initConfig()
+	kcore.Assert(len(keywords) > 0, "No keywords configured: set 'keywords' in .kdev.yaml or pass --keywords")
 
 	records := []Record{}
 	if cpuProfile != "" {
