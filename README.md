@@ -15,15 +15,40 @@
 
 ## ki18n
 
-- [ ] Document
 - [ ] Add gettext to CI
 - [ ] Add time handling
-- [ ] Use request data for default lang
 
-1.  `go run github.com/martinlehoux/kagamigo/cmd/gettext -write`
-2.  Use `Tr("key", value...)` in you templ files
-3.  Complete generated files
-4.  Run
+### Setup
+
+1. Call `ki18n.Init(localesFS)` at startup with a filesystem containing `<lang>/*.yml` translation files.
+2. Register `ki18n.LangMiddleware(...)` on your router, passing one or more strategies in priority order.
+3. Run `go run github.com/martinlehoux/kagamigo/cmd/gettext -write` to generate translation files.
+4. Complete the generated files.
+
+### Language detection strategies
+
+```go
+// Detect from a cookie named "lang", then fall back to Accept-Language header
+ki18n.LangMiddleware(
+    ki18n.CookieStrategy("lang"),
+    ki18n.AcceptLanguageStrategy,
+)
+```
+
+Built-in strategies:
+- `ki18n.CookieStrategy(name string)` — reads the named cookie
+- `ki18n.AcceptLanguageStrategy` — parses the `Accept-Language` request header
+
+If no strategy resolves a language, the middleware falls back to `en-GB`.
+
+### Translating in templ files
+
+```go
+// ctx is the context passed to your templ component
+@ki18n.Tr(ctx, "Hello %s", userName)
+```
+
+If the key is not found in the resolved language, the format string itself is returned.
 
 ## web
 
