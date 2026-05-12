@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/martinlehoux/kagamigo/kcore"
@@ -44,6 +45,7 @@ var (
 	cpuProfile     string
 	keywords       []string
 	logLevel       string
+	numWorkers     int
 )
 
 func initConfig() {
@@ -63,6 +65,7 @@ func initConfig() {
 	pflag.Int64("maxFileSize", 1024*1024, "Skip files larger than this size in bytes")
 	pflag.StringSlice("ignore", []string{}, "Regex patterns to ignore files by relative path")
 	pflag.StringSlice("keywords", []string{}, "Keywords to search for")
+	pflag.Int("workers", runtime.NumCPU(), "Number of parallel workers")
 	pflag.Parse()
 
 	viper.SetConfigType("yaml")
@@ -109,6 +112,7 @@ func initConfig() {
 		kcore.Expect(err, "Invalid ignore pattern: "+pattern)
 		ignorePatterns = append(ignorePatterns, re)
 	}
+	numWorkers = viper.GetInt("workers")
 	logLevel = viper.GetString("logLevel")
 	level := slog.LevelInfo
 	kcore.Expect(level.UnmarshalText([]byte(logLevel)), "Invalid log level")
@@ -181,7 +185,8 @@ func isBinaryFile(absolutePath string) bool {
 }
 
 func walkRepo(keywords []string, factory RecordExtractorFactory, records *[]Record) error {
-	workers := runtime.NumCPU()
+	workers := numWorkers
+	var filesScanned atomic.Int64
 	work := make(chan string, workers*2)
 	results := make(chan []Record, workers*2)
 
@@ -212,7 +217,15 @@ func walkRepo(keywords []string, factory RecordExtractorFactory, records *[]Reco
 		}
 	}()
 
-	progress := progressbar.NewOptions(-1, progressbar.OptionSetDescription("Scanning"), progressbar.OptionClearOnFinish(), progressbar.OptionSetWriter(os.Stderr))
+	progress := progressbar.NewOptions(-1,
+		progressbar.OptionSetWriter(os.Stderr),
+		progressbar.OptionClearOnFinish(),
+		progressbar.OptionShowCount(),
+		progressbar.OptionShowIts(),
+		progressbar.OptionSetItsString("files"),
+		progressbar.OptionShowDescriptionAtLineEnd(),
+		progressbar.OptionSetDescription("scanning"),
+	)
 	walkErr := filepath.WalkDir(repoPath, func(path string, d fs.DirEntry, err error) error {
 		relativePath := strings.TrimPrefix(path, repoPath)
 		progress.Describe(relativePath)
@@ -247,6 +260,7 @@ func walkRepo(keywords []string, factory RecordExtractorFactory, records *[]Reco
 			return nil
 		}
 		kcore.Expect(progress.Add(1), "Error incrementing progress")
+		filesScanned.Add(1)
 		work <- relativePath
 		return nil
 	})
@@ -256,9 +270,8 @@ func walkRepo(keywords []string, factory RecordExtractorFactory, records *[]Reco
 	close(results)
 	collectorDone.Wait()
 
-	filesScanned := progress.State().CurrentNum
 	kcore.Expect(progress.Finish(), "Error finishing progress bar")
-	slog.Info("Scan complete", "workers", workers, "files_scanned", filesScanned)
+	slog.Info("Scan complete", "workers", workers, "files_scanned", filesScanned.Load())
 	return walkErr
 }
 
