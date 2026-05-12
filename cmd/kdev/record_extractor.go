@@ -39,7 +39,7 @@ func CreateRecordExtractorFactory(algo, repoPath string) (RecordExtractorFactory
 }
 
 type GitRecordExtractorFactory struct {
-	repoPath    string
+	repoPath     string
 	trackedFiles map[string]bool
 }
 
