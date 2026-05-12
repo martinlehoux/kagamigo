@@ -7,10 +7,12 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"runtime/pprof"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/martinlehoux/kagamigo/kcore"
@@ -166,8 +168,39 @@ func isBinaryFile(absolutePath string) bool {
 }
 
 func walkRepo(keywords []string, factory RecordExtractorFactory, records *[]Record) error {
+	workers := runtime.NumCPU()
+	work := make(chan string, workers*2)
+	results := make(chan []Record, workers*2)
+
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for relativePath := range work {
+				recs, err := processFile(repoPath, relativePath, keywords, factory)
+				if err != nil {
+					slog.Warn("Error processing file", "path", relativePath, "err", err)
+					continue
+				}
+				if len(recs) > 0 {
+					results <- recs
+				}
+			}
+		}()
+	}
+
+	var collectorDone sync.WaitGroup
+	collectorDone.Add(1)
+	go func() {
+		defer collectorDone.Done()
+		for recs := range results {
+			*records = append(*records, recs...)
+		}
+	}()
+
 	progress := progressbar.Default(-1, "Scanning")
-	return filepath.WalkDir(repoPath, func(path string, d fs.DirEntry, err error) error {
+	walkErr := filepath.WalkDir(repoPath, func(path string, d fs.DirEntry, err error) error {
 		relativePath := strings.TrimPrefix(path, repoPath)
 		progress.Describe(relativePath)
 		if err != nil {
@@ -176,9 +209,8 @@ func walkRepo(keywords []string, factory RecordExtractorFactory, records *[]Reco
 		if excludes[d.Name()] {
 			if d.IsDir() {
 				return filepath.SkipDir
-			} else {
-				return nil
 			}
+			return nil
 		}
 		if d.Type()&fs.ModeSymlink != 0 {
 			return nil
@@ -202,8 +234,17 @@ func walkRepo(keywords []string, factory RecordExtractorFactory, records *[]Reco
 			return nil
 		}
 		kcore.Expect(progress.Add(1), "Error incrementing progress")
-		return processFile(repoPath, relativePath, keywords, records, factory)
+		work <- relativePath
+		return nil
 	})
+
+	close(work)
+	wg.Wait()
+	close(results)
+	collectorDone.Wait()
+
+	slog.Info("Scan complete", "workers", workers, "files_processed", len(*records))
+	return walkErr
 }
 
 type MatchingLine struct {
@@ -211,11 +252,11 @@ type MatchingLine struct {
 	keyword string
 }
 
-func processFile(repoPath string, relativePath string, keywords []string, records *[]Record, factory RecordExtractorFactory) error {
+func processFile(repoPath string, relativePath string, keywords []string, factory RecordExtractorFactory) ([]Record, error) {
 	absolutePath := path.Join(repoPath, relativePath)
 	content, err := os.ReadFile(absolutePath) // #nosec G304
 	if err != nil {
-		return kcore.Wrap(err, "Error reading file")
+		return nil, kcore.Wrap(err, "Error reading file")
 	}
 
 	lines := strings.Split(string(content), "\n")
@@ -228,28 +269,29 @@ func processFile(repoPath string, relativePath string, keywords []string, record
 		return MatchingLine{}, false
 	})
 	if len(matchingLines) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	recordExtractor, err := factory.CreateExtractor(relativePath)
 	switch err {
 	case ErrNotTracked:
-		return nil
+		return nil, nil
 	case nil:
 		break
 	default:
-		return kcore.Wrap(err, "Error creating record extractor")
+		return nil, kcore.Wrap(err, "Error creating record extractor")
 	}
 
+	var records []Record
 	for _, line := range matchingLines {
 		record, err := recordExtractor.Extract(line.keyword, line.line)
 		if err != nil {
-			slog.Warn("Error extracting record", "err", err)
+			slog.Warn("Error extracting record", "path", relativePath, "line", line.line, "err", err)
 		} else {
 			record.relativePath = relativePath
-			*records = append(*records, record)
+			records = append(records, record)
 		}
 	}
 
-	return nil
+	return records, nil
 }
