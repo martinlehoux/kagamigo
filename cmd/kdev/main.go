@@ -30,16 +30,17 @@ type Record struct {
 }
 
 var (
-	excludes   map[string]bool = map[string]bool{}
-	repoPath   string
-	after      time.Time
-	before     time.Time
-	sortBy     string
-	maxRecords int
-	algo       string
-	cpuProfile string
-	keywords   []string
-	logLevel   string
+	excludes    map[string]bool = map[string]bool{}
+	repoPath    string
+	after       time.Time
+	before      time.Time
+	sortBy      string
+	maxRecords  int
+	maxFileSize int64
+	algo        string
+	cpuProfile  string
+	keywords    []string
+	logLevel    string
 )
 
 func initConfig() {
@@ -56,6 +57,7 @@ func initConfig() {
 	pflag.String("cpuProfile", "", "write cpu profile to file")
 	pflag.StringSlice("excludes", []string{".git", ".kdev.yaml"}, "Excluded directories")
 	pflag.String("logLevel", "info", "Log level (debug, info, warn, error)")
+	pflag.Int64("maxFileSize", 1024*1024, "Skip files larger than this size in bytes")
 	pflag.Parse()
 
 	viper.SetConfigType("yaml")
@@ -92,6 +94,7 @@ func initConfig() {
 	for _, exclude := range viper.GetStringSlice("excludes") {
 		excludes[exclude] = true
 	}
+	maxFileSize = viper.GetInt64("maxFileSize")
 	logLevel = viper.GetString("logLevel")
 	level := slog.LevelInfo
 	kcore.Expect(level.UnmarshalText([]byte(logLevel)), "Invalid log level")
@@ -174,6 +177,10 @@ func walkRepo(keywords []string, factory RecordExtractorFactory, records *[]Reco
 			return nil
 		}
 		if d.IsDir() {
+			return nil
+		}
+		if info, err := d.Info(); err == nil && info.Size() > maxFileSize {
+			slog.Debug("Skipping large file", "path", relativePath, "size", info.Size())
 			return nil
 		}
 		if isBinaryFile(path) {
