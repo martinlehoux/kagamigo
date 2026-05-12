@@ -30,17 +30,18 @@ type Record struct {
 }
 
 var (
-	excludes    map[string]bool = map[string]bool{}
-	repoPath    string
-	after       time.Time
-	before      time.Time
-	sortBy      string
-	maxRecords  int
-	maxFileSize int64
-	algo        string
-	cpuProfile  string
-	keywords    []string
-	logLevel    string
+	excludes       map[string]bool = map[string]bool{}
+	ignorePatterns []*regexp.Regexp
+	repoPath       string
+	after          time.Time
+	before         time.Time
+	sortBy         string
+	maxRecords     int
+	maxFileSize    int64
+	algo           string
+	cpuProfile     string
+	keywords       []string
+	logLevel       string
 )
 
 func initConfig() {
@@ -58,6 +59,7 @@ func initConfig() {
 	pflag.StringSlice("excludes", []string{".git", ".kdev.yaml"}, "Excluded directories")
 	pflag.String("logLevel", "info", "Log level (debug, info, warn, error)")
 	pflag.Int64("maxFileSize", 1024*1024, "Skip files larger than this size in bytes")
+	pflag.StringSlice("ignore", []string{}, "Regex patterns to ignore files by relative path")
 	pflag.Parse()
 
 	viper.SetConfigType("yaml")
@@ -95,6 +97,11 @@ func initConfig() {
 		excludes[exclude] = true
 	}
 	maxFileSize = viper.GetInt64("maxFileSize")
+	for _, pattern := range viper.GetStringSlice("ignore") {
+		re, err := regexp.Compile(pattern)
+		kcore.Expect(err, "Invalid ignore pattern: "+pattern)
+		ignorePatterns = append(ignorePatterns, re)
+	}
 	logLevel = viper.GetString("logLevel")
 	level := slog.LevelInfo
 	kcore.Expect(level.UnmarshalText([]byte(logLevel)), "Invalid log level")
@@ -175,6 +182,14 @@ func walkRepo(keywords []string, factory RecordExtractorFactory, records *[]Reco
 		}
 		if d.Type()&fs.ModeSymlink != 0 {
 			return nil
+		}
+		for _, re := range ignorePatterns {
+			if re.MatchString(relativePath) {
+				if d.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
 		}
 		if d.IsDir() {
 			return nil
