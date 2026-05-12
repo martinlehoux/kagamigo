@@ -7,12 +7,32 @@
 
 ## kdev
 
-`go run github.com/martinlehoux/kagamigo/cmd/kdev --repo=<repo>`
+`go run github.com/martinlehoux/kagamigo/cmd/kdev@latest --repo=<repo> --keywords=TODO`
 
-- [ ] Ignore bin files or too large
-- [ ] Ignore regex
-- [ ] Parallel
-- [ ] Log level
+Scans a git repository for keyword occurrences and shows when each matching line was last modified (via `git blame`).
+
+### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--repo` | `.` | Path to the repository |
+| `--keywords` | _(required)_ | Comma-separated keywords to search for |
+| `--max` | `25` | Maximum number of results to display |
+| `--sort` | `date` | Sort order: `date` or `random` |
+| `--after` | | Only show results after this date (ISO format) |
+| `--before` | | Only show results before this date (ISO format or `7d`) |
+| `--algo` | `git` | Blame algorithm: `git`, `go-git`, or `stat` |
+| `--workers` | `NumCPU` | Number of parallel workers |
+| `--maxFileSize` | `1048576` | Skip files larger than this size in bytes |
+| `--ignore` | | Regex patterns to skip files by relative path |
+| `--excludes` | `.git,.kdev.yaml` | Directory/file names to exclude |
+| `--logLevel` | `info` | Log level: `debug`, `info`, `warn`, `error` |
+
+Settings can also be stored in `.kdev.yaml` at the repo root.
+
+### Known limitation
+
+`git blame` runs once per file with keyword matches (not per line). For repositories with many matching files, `--workers` controls parallelism.
 
 ## ki18n
 
