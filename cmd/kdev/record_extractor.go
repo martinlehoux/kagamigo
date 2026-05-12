@@ -28,7 +28,7 @@ var ErrNotTracked = fmt.Errorf("file is not tracked by git")
 func CreateRecordExtractorFactory(algo, repoPath string) (RecordExtractorFactory, error) {
 	switch algo {
 	case "git":
-		return &GitRecordExtractorFactory{repoPath: repoPath}, nil
+		return NewGitRecordExtractorFactory(repoPath)
 	case "go-git":
 		return NewGoGitRecordExtractorFactory(repoPath)
 	case "stat":
@@ -39,16 +39,75 @@ func CreateRecordExtractorFactory(algo, repoPath string) (RecordExtractorFactory
 }
 
 type GitRecordExtractorFactory struct {
-	repoPath string
+	repoPath    string
+	trackedFiles map[string]bool
+}
+
+func NewGitRecordExtractorFactory(repoPath string) (*GitRecordExtractorFactory, error) {
+	cmd := exec.Command("git", "ls-files")
+	cmd.Dir = repoPath
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("git ls-files failed: %w", err)
+	}
+	tracked := map[string]bool{}
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if line != "" {
+			tracked[line] = true
+		}
+	}
+	return &GitRecordExtractorFactory{repoPath: repoPath, trackedFiles: tracked}, nil
 }
 
 func (f *GitRecordExtractorFactory) CreateExtractor(relativePath string) (RecordExtractor, error) {
-	cmd := exec.Command("git", "ls-files", "--error-unmatch", relativePath)
-	cmd.Dir = f.repoPath
-	if err := cmd.Run(); err != nil {
+	if !f.trackedFiles[relativePath] {
 		return nil, ErrNotTracked
 	}
-	return &GitRecordExtractor{repoPath: f.repoPath, relativePath: relativePath}, nil
+	cmd := exec.Command("git", "blame", "--porcelain", relativePath) // #nosec G204
+	cmd.Dir = f.repoPath
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("git blame failed: %w", err)
+	}
+	lineDates, err := parseBlameOutput(output)
+	if err != nil {
+		return nil, err
+	}
+	return &GitRecordExtractor{lineDates: lineDates}, nil
+}
+
+func parseBlameOutput(output []byte) (map[int]time.Time, error) {
+	// Porcelain format emits commit metadata only on first occurrence of a SHA.
+	// Track timestamp per SHA, then map final line number → timestamp.
+	commitTimes := map[string]time.Time{}
+	lineCommit := map[int]string{}
+	var currentSHA string
+	var currentLine int
+	for _, blameLine := range strings.Split(string(output), "\n") {
+		// Commit header: "<40-char-sha> <orig> <final> [<count>]"
+		if len(blameLine) > 40 && blameLine[40] == ' ' {
+			parts := strings.Fields(blameLine)
+			if len(parts) >= 3 {
+				currentSHA = parts[0]
+				n, err := strconv.Atoi(parts[2])
+				if err == nil {
+					currentLine = n
+					lineCommit[currentLine] = currentSHA
+				}
+			}
+		} else if after, ok := strings.CutPrefix(blameLine, "author-time "); ok {
+			timestamp, err := strconv.ParseInt(after, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("error parsing timestamp: %w", err)
+			}
+			commitTimes[currentSHA] = time.Unix(timestamp, 0)
+		}
+	}
+	lineDates := map[int]time.Time{}
+	for line, sha := range lineCommit {
+		lineDates[line] = commitTimes[sha]
+	}
+	return lineDates, nil
 }
 
 type GoGitRecordExtractorFactory struct {
@@ -123,32 +182,13 @@ func (re *GoGitRecordExtractor) Extract(keyword string, line int) (Record, error
 }
 
 type GitRecordExtractor struct {
-	repoPath     string
-	relativePath string
+	lineDates map[int]time.Time
 }
 
 func (re *GitRecordExtractor) Extract(keyword string, line int) (Record, error) {
-	record := Record{
-		keyword: keyword,
-		line:    line,
+	date, ok := re.lineDates[line]
+	if !ok {
+		return Record{}, fmt.Errorf("no blame data for line %d", line)
 	}
-	gitArgs := []string{"blame", "-L", fmt.Sprintf("%d,%d", line, line), "--porcelain", re.relativePath}
-	cmd := exec.Command("git", gitArgs...) // #nosec G204
-	cmd.Dir = re.repoPath
-	output, err := cmd.Output()
-	if err != nil {
-		return record, kcore.Wrap(err, fmt.Sprintf("Error running: git %s", strings.Join(gitArgs, " ")))
-	}
-
-	for _, blameLine := range strings.Split(string(output), "\n") {
-		if strings.HasPrefix(blameLine, "author-time ") {
-			timestamp, err := strconv.ParseInt(strings.TrimPrefix(blameLine, "author-time "), 10, 64)
-			kcore.Expect(err, "Error parsing timestamp")
-			record.date = time.Unix(timestamp, 0)
-			return record, nil
-		}
-	}
-	kcore.Assert(false, "No date found in git blame output")
-
-	return Record{}, nil
+	return Record{keyword: keyword, line: line, date: date}, nil
 }
