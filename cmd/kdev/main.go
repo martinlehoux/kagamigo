@@ -30,16 +30,16 @@ type Record struct {
 }
 
 var (
-	excludes      map[string]bool = map[string]bool{}
-	repoPath      string
-	after         time.Time
-	before        time.Time
-	sortBy        string
-	maxRecords    int
-	algo          string
-	cpuProfile    string
-	keywords      []string
-	binExtensions = map[string]bool{}
+	excludes   map[string]bool = map[string]bool{}
+	repoPath   string
+	after      time.Time
+	before     time.Time
+	sortBy     string
+	maxRecords int
+	algo       string
+	cpuProfile string
+	keywords   []string
+	logLevel   string
 )
 
 func initConfig() {
@@ -55,6 +55,7 @@ func initConfig() {
 	pflag.String("algo", "git", "Record extraction algorithm (git, go-git, stat)")
 	pflag.String("cpuProfile", "", "write cpu profile to file")
 	pflag.StringSlice("excludes", []string{".git", ".kdev.yaml"}, "Excluded directories")
+	pflag.String("logLevel", "info", "Log level (debug, info, warn, error)")
 	pflag.Parse()
 
 	viper.SetConfigType("yaml")
@@ -91,6 +92,10 @@ func initConfig() {
 	for _, exclude := range viper.GetStringSlice("excludes") {
 		excludes[exclude] = true
 	}
+	logLevel = viper.GetString("logLevel")
+	level := slog.LevelInfo
+	kcore.Expect(level.UnmarshalText([]byte(logLevel)), "Invalid log level")
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 }
 
 func main() {
@@ -128,13 +133,7 @@ func main() {
 	}
 }
 
-func isBinaryFile(absolutePath, relativePath string) bool {
-	// First check by file extension (fast)
-	ext := strings.ToLower(filepath.Ext(relativePath))
-	if _, ok := binExtensions[ext]; ok {
-		return true
-	}
-
+func isBinaryFile(absolutePath string) bool {
 	file, err := os.Open(absolutePath) // #nosec G304 Repo walking
 	kcore.Expect(err, "failed to open file")
 	defer file.Close()
@@ -177,7 +176,7 @@ func walkRepo(keywords []string, factory RecordExtractorFactory, records *[]Reco
 		if d.IsDir() {
 			return nil
 		}
-		if isBinaryFile(path, relativePath) {
+		if isBinaryFile(path) {
 			return nil
 		}
 		kcore.Expect(progress.Add(1), "Error incrementing progress")
