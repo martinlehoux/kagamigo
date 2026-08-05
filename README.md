@@ -110,6 +110,10 @@ block, err := aes.NewCipher(secret)
 kcore.Expect(err, "error creating AES cipher")
 ```
 
+## kstore
+
+Provides typed JSON and YAML document loading with atomic writes and explicit file permissions.
+
 ## kauth
 
 - [ ] Auto logout for some errors (unreachable user, expired)
